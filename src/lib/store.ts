@@ -2,7 +2,7 @@ import { useSyncExternalStore } from "react";
 import type { Case } from "./types";
 import { uid } from "./id";
 
-const KEY = "enklaw:v1";
+const KEY = "enklaw:india:v1";
 
 interface State {
   cases: Case[];
@@ -49,12 +49,16 @@ export function newCase(partial: Partial<Case> = {}): Case {
   const c: Case = {
     id: uid(),
     title: "Untitled case",
-    myRole: "Plaintiff",
-    status: "active",
+    courtType: "DC",
+    side: "Petitioner",
+    status: "pending",
+    client: {},
     createdAt: new Date().toISOString(),
     parties: [],
-    deadlines: [],
-    evidence: [],
+    hearings: [],
+    orders: [],
+    tasks: [],
+    annexures: [],
     timeline: [],
     drafts: [],
     notes: [],

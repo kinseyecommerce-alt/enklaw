@@ -1,27 +1,65 @@
-export type Role = "Plaintiff" | "Defendant" | "Petitioner" | "Respondent" | "Appellant" | "Appellee" | "Other";
+export type CourtType = "SCI" | "HC" | "DC" | "CAT" | "DRT" | "DRAT" | "NCLT" | "NCLAT" | "NCDRC" | "SCDRC" | "DCDRC" | "OTHER";
+
+export type Side =
+  | "Petitioner"
+  | "Respondent"
+  | "Appellant"
+  | "Plaintiff"
+  | "Defendant"
+  | "Complainant"
+  | "Accused"
+  | "Applicant"
+  | "Opposite Party"
+  | "Other";
 
 export interface Party {
   id: string;
   name: string;
-  role: string;
+  side: string; // e.g. "Petitioner No. 1", "Respondent"
+  advocate?: string;
   contact?: string;
-  attorney?: string;
 }
 
-export interface Deadline {
+export interface Client {
+  name?: string;
+  phone?: string;
+  email?: string;
+  address?: string;
+}
+
+/** One listing of the case before the court. The diary's core record. */
+export interface Hearing {
+  id: string;
+  date: string; // YYYY-MM-DD
+  purpose?: string; // e.g. "Admission", "Arguments", "Evidence"
+  courtHall?: string;
+  itemNo?: string;
+  judge?: string;
+  /** What happened. Empty = not yet updated. */
+  outcome?: string;
+  nextDate?: string;
+}
+
+export interface Order {
+  id: string;
+  date: string;
+  title: string;
+  summary?: string;
+  fileName?: string;
+  link?: string;
+}
+
+export interface Task {
   id: string;
   title: string;
-  date: string; // YYYY-MM-DD
-  time?: string; // HH:MM
-  kind: "deadline" | "hearing" | "trial" | "meeting" | "other";
-  location?: string;
-  notes?: string;
+  due: string;
   done: boolean;
+  notes?: string;
 }
 
-export interface Evidence {
+export interface Annexure {
   id: string;
-  exhibit: string; // e.g. "A", "1"
+  label: string; // "P-1", "R-1", "Exhibit A"
   title: string;
   kind: "document" | "photo" | "video" | "audio" | "message" | "record" | "other";
   date?: string;
@@ -59,62 +97,41 @@ export interface Note {
   updatedAt: string;
 }
 
-export interface DocketDocument {
-  description?: string;
-  documentNumber?: string;
-  pageCount?: number;
-  available: boolean;
-  url?: string;
-  pdfUrl?: string;
-}
-
-export interface DocketEntry {
-  entryNumber?: number;
-  dateFiled?: string;
-  description: string;
-  documents: DocketDocument[];
-}
-
-/** A CourtListener docket linked to a case. */
-export interface LinkedDocket {
-  docketId: number;
-  url: string;
-  caseName: string;
-  court: string;
-  courtId: string;
-  docketNumber?: string;
-  dateFiled?: string;
-  dateTerminated?: string;
-  judge?: string;
-  cause?: string;
-  natureOfSuit?: string;
-  entries: DocketEntry[];
-  entriesNote?: string;
-  lastSynced: string;
-  /** Entry keys seen at the previous sync, used to highlight new filings. */
-  newEntryKeys: string[];
-  alertId?: number;
-}
-
 export interface Case {
   id: string;
-  title: string;
+  title: string; // cause title, e.g. "Ram Kumar vs. State of U.P."
+  courtType: CourtType;
+  court?: string; // "High Court of Delhi", "District Court, Saket"
+  state?: string;
+  district?: string;
+  bench?: string;
+  caseType?: string; // "W.P.(C)", "SLP(Crl)", "O.S."
   caseNumber?: string;
-  court?: string;
-  jurisdiction?: string; // e.g. "California", "Federal – N.D. Cal."
+  caseYear?: string;
+  cnr?: string; // 16-character eCourts CNR
+  diaryNumber?: string; // Supreme Court diary number
+  filingDate?: string;
+  firNumber?: string;
+  policeStation?: string;
+  actsSections?: string; // "S. 138 NI Act", "Ss. 318, 316(2) BNS"
+  side: Side;
   judge?: string;
-  caseType?: string;
-  myRole: Role;
-  status: "active" | "closed" | "appeal";
+  stage?: string;
+  status: "pending" | "reserved" | "disposed";
+  disposalDate?: string;
+  disposalNature?: string;
+  client: Client;
   summary?: string;
   goals?: string;
+  tags?: string;
   createdAt: string;
   parties: Party[];
-  deadlines: Deadline[];
-  evidence: Evidence[];
+  hearings: Hearing[];
+  orders: Order[];
+  tasks: Task[];
+  annexures: Annexure[];
   timeline: TimelineEvent[];
   drafts: Draft[];
   notes: Note[];
   chat: ChatMessage[];
-  docket?: LinkedDocket;
 }

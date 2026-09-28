@@ -1,28 +1,27 @@
-import type { Case, Deadline } from "./types";
+import type { Case } from "./types";
+import { caseNo } from "./courts";
 
 const esc = (s: string) => s.replace(/\\/g, "\\\\").replace(/;/g, "\;").replace(/,/g, "\\,").replace(/\n/g, "\\n");
 
-/** Builds an iCalendar file so deadlines can be imported into Google/Apple/Outlook calendars. */
-export function toICS(c: Case, deadlines: Deadline[]): string {
+/** iCalendar export of upcoming hearings and tasks, for Google / Outlook / phone calendars. */
+export function toICS(cases: Case[], from: string): string {
   const stamp = new Date().toISOString().replace(/[-:]/g, "").replace(/\.\d+/, "");
-  const events = deadlines.map((d) => {
-    const day = d.date.replace(/-/g, "");
-    const when = d.time
-      ? `DTSTART:${day}T${d.time.replace(":", "")}00\nDURATION:PT1H`
-      : `DTSTART;VALUE=DATE:${day}`;
-    return [
+  const ev = (uidPart: string, date: string, summary: string, desc: string) =>
+    [
       "BEGIN:VEVENT",
-      `UID:${d.id}@enklaw`,
+      `UID:${uidPart}@enklaw`,
       `DTSTAMP:${stamp}`,
-      when,
-      `SUMMARY:${esc(`[${c.title}] ${d.title}`)}`,
-      d.location ? `LOCATION:${esc(d.location)}` : "",
-      `DESCRIPTION:${esc(`${d.kind}${c.caseNumber ? ` — Case ${c.caseNumber}` : ""}${d.notes ? `\n${d.notes}` : ""}`)}`,
-      "BEGIN:VALARM\nTRIGGER:-P1D\nACTION:DISPLAY\nDESCRIPTION:Court deadline tomorrow\nEND:VALARM",
+      `DTSTART;VALUE=DATE:${date.replace(/-/g, "")}`,
+      `SUMMARY:${esc(summary)}`,
+      `DESCRIPTION:${esc(desc)}`,
+      "BEGIN:VALARM\nTRIGGER:-PT15H\nACTION:DISPLAY\nDESCRIPTION:Hearing tomorrow\nEND:VALARM",
       "END:VEVENT",
-    ]
-      .filter(Boolean)
-      .join("\n");
-  });
-  return ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//EnkLaw//Court Assistant//EN", ...events, "END:VCALENDAR"].join("\r\n");
+    ].join("\n");
+  const events = cases.flatMap((c) => [
+    ...c.hearings
+      .filter((h) => h.date >= from && !h.outcome)
+      .map((h) => ev(h.id, h.date, `${caseNo(c) || c.title}${h.itemNo ? ` (Item ${h.itemNo})` : ""}`, `${c.title}\n${c.court ?? ""}${h.purpose ? `\n${h.purpose}` : ""}${h.courtHall ? `\nCourt ${h.courtHall}` : ""}`)),
+    ...c.tasks.filter((t) => !t.done && t.due >= from).map((t) => ev(t.id, t.due, `Task: ${t.title}`, `${c.title}${t.notes ? `\n${t.notes}` : ""}`)),
+  ]);
+  return ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//EnkLaw//Case Diary//EN", ...events, "END:VCALENDAR"].join("\r\n");
 }

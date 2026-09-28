@@ -19,7 +19,7 @@ export function Empty({ title, children }: { title: string; children?: ReactNode
   );
 }
 
-export function Section({ title, actions, children }: { title: string; actions?: ReactNode; children: ReactNode }) {
+export function Section({ title, actions, children }: { title: ReactNode; actions?: ReactNode; children: ReactNode }) {
   return (
     <section className="card">
       <header className="card-head">

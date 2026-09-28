@@ -9,7 +9,7 @@ export function Settings({ health }: { health: Health | null }) {
   return (
     <div className="page narrow">
       <h1>Settings & backup</h1>
-      <Section title="AI connection">
+      <Section title="AI assistant (Claude)">
         {health == null ? (
           <p>
             The EnkLaw server is not reachable. Start it with <code>npm run dev</code>.
@@ -20,31 +20,32 @@ export function Settings({ health }: { health: Health | null }) {
           </p>
         ) : (
           <p>
-            No API key found. Copy <code>.env.example</code> to <code>.env</code>, set <code>ANTHROPIC_API_KEY</code>, and restart the server.
+            No API key. Copy <code>.env.example</code> to <code>.env</code>, set <code>ANTHROPIC_API_KEY</code>, and restart the server.
           </p>
         )}
       </Section>
-      <Section title="Court records (CourtListener)">
-        {health?.courtListener ? (
-          <p>Connected. Court records, case law research, citation checks and docket alerts are enabled.</p>
+      <Section title="Judgments (Indian Kanoon)">
+        {health?.indianKanoon ? (
+          <p>Connected. Judgment search, citation verification and AI research are enabled.</p>
         ) : (
           <p>
-            Not configured. Create a free account at{" "}
-            <a href="https://www.courtlistener.com/" target="_blank" rel="noreferrer">
-              courtlistener.com
+            Not configured. Create an account at{" "}
+            <a href="https://api.indiankanoon.org/" target="_blank" rel="noreferrer">
+              api.indiankanoon.org
             </a>
-            , copy your API token from your profile, set <code>COURTLISTENER_API_TOKEN</code> in <code>.env</code>, and restart the server.
+            , copy your API token, set <code>INDIANKANOON_API_TOKEN</code> in <code>.env</code>, and restart. New accounts get ₹500 credit;
+            non-commercial users can apply for ₹10,000 of free credit a month.
           </p>
         )}
-        <p className="muted small">
-          Coverage: millions of federal and state appellate opinions, and federal (PACER) dockets that have been added to the free RECAP archive. Most
-          state trial court dockets are not included. Free accounts are rate-limited.
+      </Section>
+      <Section title="Case status from courts">
+        <p className="small">
+          The Supreme Court, High Courts, eCourts, tribunals and consumer commissions do not offer a public API, and their sites use CAPTCHAs. EnkLaw
+          therefore links to each court's official status page from the case, and reads orders you download (PDF or photo) to update the diary.
         </p>
       </Section>
       <Section title="Backup your data">
-        <p className="muted">
-          Your cases are stored only in this browser. Export a backup regularly — clearing browser data will erase them.
-        </p>
+        <p className="muted">Your diary is stored only in this browser. Export a backup regularly — clearing browser data erases it.</p>
         <div className="row">
           <button className="btn primary" onClick={() => downloadFile(`enklaw-backup-${new Date().toISOString().slice(0, 10)}.json`, exportData(), "application/json")}>
             Export backup
@@ -76,8 +77,8 @@ export function Settings({ health }: { health: Health | null }) {
       </Section>
       <Section title="About">
         <p className="small">
-          EnkLaw is a personal tool for self-represented litigants. It provides legal information and drafting help, not legal advice, and is not a
-          substitute for a licensed attorney. AI output can be wrong — verify every citation, rule and deadline.
+          EnkLaw is a personal case diary and legal assistant for Indian courts. AI output can be wrong — verify every section, citation, date and
+          limitation period.
         </p>
       </Section>
     </div>

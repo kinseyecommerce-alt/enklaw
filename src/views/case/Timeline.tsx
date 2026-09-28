@@ -1,26 +1,28 @@
 import { useState } from "react";
-import type { Case, TimelineEvent } from "../lib/types";
-import { updateCase } from "../lib/store";
-import { uid } from "../lib/id";
-import { downloadDoc, slug } from "../lib/download";
-import { Empty, Field, Section } from "../components/ui";
+import type { Case, TimelineEvent } from "../../lib/types";
+import { updateCase } from "../../lib/store";
+import { uid } from "../../lib/id";
+import { downloadDoc, slug } from "../../lib/download";
+import { Empty, Field, Section } from "../../components/ui";
+import { fmt } from "../../lib/dates";
+import { caseNo } from "../../lib/courts";
 
 export function Timeline({ c }: { c: Case }) {
   const [form, setForm] = useState<Omit<TimelineEvent, "id">>({ date: "", title: "", description: "", evidenceIds: [] });
   const save = (timeline: TimelineEvent[]) => updateCase(c.id, (x) => ({ ...x, timeline }));
   const sorted = [...c.timeline].sort((a, b) => a.date.localeCompare(b.date));
-  const exhibit = new Map(c.evidence.map((e) => [e.id, e]));
+  const exhibit = new Map(c.annexures.map((e) => [e.id, e]));
 
   const exportTimeline = () =>
     downloadDoc(
       `${slug(c.title)}-timeline`,
       [
-        `# CHRONOLOGY OF EVENTS`,
-        `**${c.title}**${c.caseNumber ? ` — Case No. ${c.caseNumber}` : ""}`,
+        `# LIST OF DATES AND EVENTS`,
+        `**${c.title}**${caseNo(c) ? ` — ${caseNo(c)}` : ""}`,
         "",
         ...sorted.map((t) => {
-          const refs = t.evidenceIds.map((id) => exhibit.get(id)?.exhibit).filter(Boolean);
-          return `**${t.date}** — ${t.title}${t.description ? `. ${t.description}` : ""}${refs.length ? ` (Exh. ${refs.join(", ")})` : ""}`;
+          const refs = t.evidenceIds.map((id) => exhibit.get(id)?.label).filter(Boolean);
+          return `**${fmt(t.date)}** — ${t.title}${t.description ? `. ${t.description}` : ""}${refs.length ? ` (Annexure ${refs.join(", ")})` : ""}`;
         }),
       ].join("\n\n"),
     );
@@ -28,20 +30,20 @@ export function Timeline({ c }: { c: Case }) {
   return (
     <div className="stack">
       <Section
-        title="Timeline of events"
+        title="List of dates & events"
         actions={
           <button className="btn" disabled={!sorted.length} onClick={exportTimeline}>
-            Export chronology
+            Export list of dates
           </button>
         }
       >
         {sorted.length === 0 ? (
-          <Empty title="No events yet">Build a clear, dated story of what happened. Judges appreciate a clean chronology.</Empty>
+          <Empty title="No events yet">Build the list of dates & events used in petitions, SLPs and written submissions.</Empty>
         ) : (
           <ol className="timeline">
             {sorted.map((t) => (
               <li key={t.id}>
-                <div className="tl-date">{t.date}</div>
+                <div className="tl-date">{fmt(t.date)}</div>
                 <div className="tl-body">
                   <strong>{t.title}</strong>
                   {t.description && <div className="small">{t.description}</div>}
@@ -49,7 +51,7 @@ export function Timeline({ c }: { c: Case }) {
                     <div className="row small">
                       {t.evidenceIds.map((id) => exhibit.get(id)).filter(Boolean).map((e) => (
                         <span key={e!.id} className="badge muted">
-                          Exh. {e!.exhibit}: {e!.title}
+                          {e!.label}: {e!.title}
                         </span>
                       ))}
                     </div>
@@ -84,11 +86,11 @@ export function Timeline({ c }: { c: Case }) {
           <Field label="Details">
             <textarea rows={2} value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} />
           </Field>
-          {c.evidence.length > 0 && (
+          {c.annexures.length > 0 && (
             <div className="field">
-              <span className="field-label">Supporting exhibits</span>
+              <span className="field-label">Supporting annexures</span>
               <div className="chips">
-                {c.evidence.map((ev) => {
+                {c.annexures.map((ev) => {
                   const on = form.evidenceIds.includes(ev.id);
                   return (
                     <button
@@ -99,7 +101,7 @@ export function Timeline({ c }: { c: Case }) {
                         setForm({ ...form, evidenceIds: on ? form.evidenceIds.filter((x) => x !== ev.id) : [...form.evidenceIds, ev.id] })
                       }
                     >
-                      {ev.exhibit}: {ev.title}
+                      {ev.label}: {ev.title}
                     </button>
                   );
                 })}

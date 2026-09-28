@@ -1,8 +1,8 @@
 import { useState } from "react";
-import type { Case, Note } from "../lib/types";
-import { updateCase } from "../lib/store";
-import { uid } from "../lib/id";
-import { Empty, Section } from "../components/ui";
+import type { Case, Note } from "../../lib/types";
+import { updateCase } from "../../lib/store";
+import { uid } from "../../lib/id";
+import { Empty, Section } from "../../components/ui";
 
 export function Notes({ c }: { c: Case }) {
   const [activeId, setActiveId] = useState<string | null>(c.notes[0]?.id ?? null);

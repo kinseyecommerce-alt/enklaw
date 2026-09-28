@@ -2,9 +2,18 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import express from "express";
 import Anthropic from "@anthropic-ai/sdk";
-import { SYSTEM_PROMPT, DRAFT_INSTRUCTIONS, ANALYZE_INSTRUCTIONS, HEARING_INSTRUCTIONS } from "./prompts.ts";
-import * as cl from "./courtlistener.ts";
-import { CASE_LAW_TOOLS, runCaseLawTool } from "./tools.ts";
+import { betaZodOutputFormat } from "@anthropic-ai/sdk/helpers/beta/zod";
+import { z } from "zod";
+import {
+  SYSTEM_PROMPT,
+  DRAFT_INSTRUCTIONS,
+  ANALYZE_INSTRUCTIONS,
+  HEARING_INSTRUCTIONS,
+  ORDER_INSTRUCTIONS,
+  VERIFY_INSTRUCTIONS,
+} from "./prompts.ts";
+import * as ik from "./indiankanoon.ts";
+import { RESEARCH_TOOLS, runResearchTool } from "./tools.ts";
 
 // Load .env if present (Node 22+ built-in).
 try {
@@ -22,28 +31,29 @@ const client = new Anthropic();
 const aiConfigured = Boolean(process.env.ANTHROPIC_API_KEY || process.env.ANTHROPIC_AUTH_TOKEN);
 
 const app = express();
-app.use(express.json({ limit: "20mb" }));
+app.use(express.json({ limit: "25mb" }));
 
 app.get("/api/health", (_req, res) => {
-  res.json({ ok: true, aiConfigured, model: MODEL, courtListener: cl.clConfigured() });
+  res.json({ ok: true, aiConfigured, model: MODEL, indianKanoon: ik.ikConfigured() });
 });
 
-type ChatBody = {
-  caseContext?: string;
-  messages: Anthropic.Beta.BetaMessageParam[];
-  webSearch?: boolean;
-  caseLaw?: boolean;
+const COMMON = {
+  model: MODEL,
+  thinking: { type: "adaptive" as const },
+  betas: ["server-side-fallback-2026-07-01"],
+  fallbacks: "default" as const,
+  system: [{ type: "text" as const, text: SYSTEM_PROMPT, cache_control: { type: "ephemeral" as const } }],
 };
 
 /**
  * Streams Claude's text output to the HTTP response as plain text.
- * Runs the tool loop for the CourtListener tools, continues `pause_turn`
+ * Runs the tool loop for the Indian Kanoon tools, continues `pause_turn`
  * (server-side web search hitting its iteration limit), and surfaces
  * refusals instead of returning silence.
  */
 async function streamToResponse(
   res: express.Response,
-  opts: { system: string; messages: Anthropic.Beta.BetaMessageParam[]; webSearch?: boolean; caseLaw?: boolean },
+  opts: { messages: Anthropic.Beta.BetaMessageParam[]; webSearch?: boolean; research?: boolean },
 ) {
   res.setHeader("Content-Type", "text/plain; charset=utf-8");
   res.setHeader("Cache-Control", "no-cache");
@@ -51,19 +61,15 @@ async function streamToResponse(
 
   const messages = [...opts.messages];
   const tools: Anthropic.Beta.BetaToolUnion[] = [];
-  if (opts.caseLaw && cl.clConfigured()) tools.push(...CASE_LAW_TOOLS);
+  if (opts.research && ik.ikConfigured()) tools.push(...RESEARCH_TOOLS);
   if (opts.webSearch) tools.push({ type: "web_search_20260209", name: "web_search", max_uses: 5 });
 
   try {
-    for (let turn = 0; turn < 12; turn++) {
+    for (let turn = 0; turn < 15; turn++) {
       const stream = client.beta.messages.stream({
-        model: MODEL,
+        ...COMMON,
         max_tokens: 64000,
-        thinking: { type: "adaptive" },
         output_config: { effort: "high" },
-        betas: ["server-side-fallback-2026-07-01"],
-        fallbacks: "default",
-        system: [{ type: "text", text: opts.system, cache_control: { type: "ephemeral" } }],
         tools: tools.length ? tools : undefined,
         messages,
       });
@@ -74,20 +80,20 @@ async function streamToResponse(
         } else if (event.type === "content_block_start" && event.content_block.type === "server_tool_use") {
           res.write("\n\n_🔎 Searching the web…_\n\n");
         } else if (event.type === "content_block_start" && event.content_block.type === "tool_use") {
-          res.write(`\n\n_⚖️ ${event.content_block.name === "verify_citations" ? "Verifying citations" : "Searching CourtListener"}…_\n\n`);
+          res.write(`\n\n_⚖️ ${event.content_block.name === "read_judgment" ? "Reading judgment" : "Searching Indian Kanoon"}…_\n\n`);
         }
       }
 
       const final = await stream.finalMessage();
-      if (final.stop_reason === "tool_use") {
-        const calls = final.content.filter((b): b is Anthropic.Beta.BetaToolUseBlock => b.type === "tool_use");
-        const results = await Promise.all(calls.map((call) => runCaseLawTool(call)));
-        messages.push({ role: "assistant", content: final.content }, { role: "user", content: results });
-        continue;
-      }
       if (final.stop_reason === "refusal") {
         res.write("\n\n[The assistant declined to answer this request. Try rephrasing it.]");
         break;
+      }
+      if (final.stop_reason === "tool_use") {
+        const calls = final.content.filter((b): b is Anthropic.Beta.BetaToolUseBlock => b.type === "tool_use");
+        const results = await Promise.all(calls.map((call) => runResearchTool(call)));
+        messages.push({ role: "assistant", content: final.content }, { role: "user", content: results });
+        continue;
       }
       if (final.stop_reason === "pause_turn") {
         messages.push({ role: "assistant", content: final.content });
@@ -113,9 +119,8 @@ function describeError(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
 }
 
-function withCase(caseContext: string | undefined, text: string): string {
-  return caseContext ? `<case_file>\n${caseContext}\n</case_file>\n\n${text}` : text;
-}
+const withCase = (caseContext: string | undefined, text: string) =>
+  caseContext ? `<case_file>\n${caseContext}\n</case_file>\n\n${text}` : text;
 
 function requireAi(res: express.Response): boolean {
   if (aiConfigured) return true;
@@ -123,9 +128,22 @@ function requireAi(res: express.Response): boolean {
   return false;
 }
 
+/** A PDF / image / text upload, sent by the browser as base64 or text. */
+type Upload = { title?: string; text?: string; base64?: string; mediaType?: string };
+
+function uploadBlocks(u: Upload): Anthropic.Beta.BetaContentBlockParam[] | null {
+  const title = (u.title || "document").replace(/"/g, "'");
+  if (u.base64 && u.mediaType === "application/pdf")
+    return [{ type: "document", title, source: { type: "base64", media_type: "application/pdf", data: u.base64 } }];
+  if (u.base64 && /^image\/(png|jpeg|gif|webp)$/.test(u.mediaType ?? ""))
+    return [{ type: "image", source: { type: "base64", media_type: u.mediaType as "image/png", data: u.base64 } }];
+  if (u.text) return [{ type: "text", text: `<document title="${title}">\n${u.text}\n</document>` }];
+  return null;
+}
+
 app.post("/api/chat", async (req, res) => {
   if (!requireAi(res)) return;
-  const body = req.body as ChatBody;
+  const body = req.body as { caseContext?: string; messages: Anthropic.Beta.BetaMessageParam[]; webSearch?: boolean; research?: boolean };
   if (!Array.isArray(body.messages) || body.messages.length === 0) {
     res.status(400).send("messages is required");
     return;
@@ -133,115 +151,129 @@ app.post("/api/chat", async (req, res) => {
   // Attach the case file to the first user turn so it stays in a stable, cacheable prefix.
   const [first, ...rest] = body.messages;
   const firstText = typeof first.content === "string" ? first.content : "";
-  const messages: Anthropic.Beta.BetaMessageParam[] = [
-    { role: "user", content: withCase(body.caseContext, firstText) },
-    ...rest,
-  ];
-  await streamToResponse(res, { system: SYSTEM_PROMPT, messages, webSearch: body.webSearch, caseLaw: body.caseLaw });
+  await streamToResponse(res, {
+    messages: [{ role: "user", content: withCase(body.caseContext, firstText) }, ...rest],
+    webSearch: body.webSearch,
+    research: body.research,
+  });
 });
 
 app.post("/api/draft", async (req, res) => {
   if (!requireAi(res)) return;
-  const { caseContext, docType, instructions, caseLaw } = req.body as {
+  const { caseContext, docType, instructions, research } = req.body as {
     caseContext?: string;
     docType: string;
     instructions?: string;
-    caseLaw?: boolean;
+    research?: boolean;
   };
-  const research =
-    caseLaw && cl.clConfigured()
-      ? "\n\nUse the CourtListener tools to find real supporting authority before citing any case, and verify every case citation you include. Do not narrate the research; output only the document and checklist."
+  const extra =
+    research && ik.ikConfigured()
+      ? "\n\nUse the Indian Kanoon tools to find real supporting judgments before citing any, and confirm each one. Do not narrate the research; output only the document and checklist."
       : "";
-  const prompt = `${DRAFT_INSTRUCTIONS}${research}\n\nDocument type: ${docType}\n\nWhat I need this document to do:\n${instructions || "(no extra instructions)"}`;
-  await streamToResponse(res, {
-    system: SYSTEM_PROMPT,
-    messages: [{ role: "user", content: withCase(caseContext, prompt) }],
-    caseLaw,
-  });
+  const prompt = `${DRAFT_INSTRUCTIONS}${extra}\n\nDocument type: ${docType}\n\nWhat the document must do / key facts:\n${instructions || "(no extra instructions)"}`;
+  await streamToResponse(res, { messages: [{ role: "user", content: withCase(caseContext, prompt) }], research });
+});
+
+app.post("/api/verify-citations", async (req, res) => {
+  if (!requireAi(res)) return;
+  if (!ik.ikConfigured()) {
+    res.status(503).type("text/plain").send("Set INDIANKANOON_API_TOKEN in .env to verify citations.");
+    return;
+  }
+  const { text } = req.body as { text?: string };
+  if (!text?.trim()) {
+    res.status(400).send("text is required");
+    return;
+  }
+  await streamToResponse(res, { messages: [{ role: "user", content: `${VERIFY_INSTRUCTIONS}\n\n<document>\n${text}\n</document>` }], research: true });
 });
 
 app.post("/api/analyze", async (req, res) => {
   if (!requireAi(res)) return;
-  const { caseContext, title, text, pdfBase64 } = req.body as {
-    caseContext?: string;
-    title: string;
-    text?: string;
-    pdfBase64?: string;
-  };
-  const safeTitle = (title || "document").replace(/"/g, "'");
-  let content: Anthropic.Beta.BetaMessageParam["content"];
-  if (pdfBase64) {
-    content = [
-      { type: "document", title: safeTitle, source: { type: "base64", media_type: "application/pdf", data: pdfBase64 } },
-      { type: "text", text: withCase(caseContext, `${ANALYZE_INSTRUCTIONS}\n\nThe document is attached above ("${safeTitle}").`) },
-    ];
-  } else if (text) {
-    content = withCase(caseContext, `${ANALYZE_INSTRUCTIONS}\n\n<document title="${safeTitle}">\n${text}\n</document>`);
-  } else {
-    res.status(400).send("Provide text or pdfBase64");
+  const { caseContext, ...upload } = req.body as Upload & { caseContext?: string };
+  const blocks = uploadBlocks(upload);
+  if (!blocks) {
+    res.status(400).send("Upload a PDF, an image, or paste text.");
     return;
   }
-  await streamToResponse(res, { system: SYSTEM_PROMPT, messages: [{ role: "user", content }] });
+  await streamToResponse(res, {
+    messages: [{ role: "user", content: [...blocks, { type: "text", text: withCase(caseContext, ANALYZE_INSTRUCTIONS) }] }],
+  });
 });
 
 app.post("/api/hearing-prep", async (req, res) => {
   if (!requireAi(res)) return;
   const { caseContext, hearing, notes } = req.body as { caseContext?: string; hearing: string; notes?: string };
   const prompt = `${HEARING_INSTRUCTIONS}\n\nHearing: ${hearing}\n\nMy notes / goals:\n${notes || "(none)"}`;
-  await streamToResponse(res, {
-    system: SYSTEM_PROMPT,
-    messages: [{ role: "user", content: withCase(caseContext, prompt) }],
-  });
+  await streamToResponse(res, { messages: [{ role: "user", content: withCase(caseContext, prompt) }] });
 });
 
-// ---------- CourtListener proxy ----------
+const OrderExtract = z.object({
+  order_date: z.string().describe("Date of the order, YYYY-MM-DD, or empty"),
+  title: z.string().describe("Short title, e.g. 'Notice issued; reply in 4 weeks'"),
+  summary: z.string().describe("2-5 sentence plain-language summary of what the court did"),
+  outcome: z.string().describe("One line for the case diary: what happened at this hearing"),
+  judge: z.string().describe("Judge(s) / bench named in the order, or empty"),
+  next_date: z.string().describe("Next date of hearing, YYYY-MM-DD, or empty if not fixed"),
+  next_date_note: z.string().describe("How the next date was determined, or empty"),
+  next_purpose: z.string().describe("Purpose of the next listing, e.g. 'Arguments', or empty"),
+  disposed: z.boolean().describe("True if the order finally disposes of the case"),
+  compliances: z
+    .array(z.object({ task: z.string(), due_date: z.string().describe("YYYY-MM-DD or empty") }))
+    .describe("Directions someone must comply with, with deadlines if stated"),
+});
 
-function requireCl(res: express.Response): boolean {
-  if (cl.clConfigured()) return true;
-  res.status(503).json({ error: "CourtListener is not configured. Set COURTLISTENER_API_TOKEN in your .env file and restart the server." });
-  return false;
-}
-
-function clHandler(fn: (req: express.Request) => Promise<unknown>): express.RequestHandler {
-  return async (req, res) => {
-    if (!requireCl(res)) return;
-    try {
-      res.json((await fn(req)) ?? { ok: true });
-    } catch (e) {
-      const status = e instanceof cl.CourtListenerError ? e.status : 502;
-      res.status(status >= 400 && status < 600 ? status : 502).json({ error: e instanceof Error ? e.message : String(e) });
+app.post("/api/read-order", async (req, res) => {
+  if (!requireAi(res)) return;
+  const { caseContext, ...upload } = req.body as Upload & { caseContext?: string };
+  const blocks = uploadBlocks(upload);
+  if (!blocks) {
+    res.status(400).json({ error: "Upload a PDF, an image, or paste the order text." });
+    return;
+  }
+  try {
+    const msg = await client.beta.messages.parse({
+      ...COMMON,
+      max_tokens: 8000,
+      output_config: { effort: "medium", format: betaZodOutputFormat(OrderExtract) },
+      messages: [{ role: "user", content: [...blocks, { type: "text", text: withCase(caseContext, ORDER_INSTRUCTIONS) }] }],
+    });
+    if (msg.stop_reason === "refusal" || !msg.parsed_output) {
+      res.status(422).json({ error: "Could not read this order. Try a clearer scan or paste the text." });
+      return;
     }
-  };
-}
-
-const qstr = (v: unknown) => (typeof v === "string" && v ? v : undefined);
-const searchParams = (req: express.Request): cl.SearchParams => ({
-  q: qstr(req.query.q) ?? "",
-  court: qstr(req.query.court),
-  filedAfter: qstr(req.query.filed_after),
-  filedBefore: qstr(req.query.filed_before),
-  cursor: qstr(req.query.cursor),
-  orderBy: qstr(req.query.order_by),
+    res.json(msg.parsed_output);
+  } catch (e) {
+    res.status(502).json({ error: describeError(e) });
+  }
 });
 
-app.get("/api/cl/opinions", clHandler((req) => cl.searchOpinions(searchParams(req))));
-app.get("/api/cl/dockets", clHandler((req) => cl.searchDockets(searchParams(req))));
-app.get(
-  "/api/cl/dockets/:id",
-  clHandler((req) => cl.getDocket(Number(req.params.id))),
-);
-app.post(
-  "/api/cl/citations",
-  clHandler((req) => cl.checkCitations(String((req.body as { text?: string }).text ?? ""))),
-);
-app.post(
-  "/api/cl/alerts",
-  clHandler((req) => cl.createDocketAlert(Number((req.body as { docket?: number }).docket))),
-);
-app.delete(
-  "/api/cl/alerts/:id",
-  clHandler((req) => cl.deleteDocketAlert(Number(req.params.id))),
-);
+// ---------- Indian Kanoon proxy ----------
+
+app.get("/api/ik/search", async (req, res) => {
+  if (!ik.ikConfigured()) {
+    res.status(503).json({ error: "Indian Kanoon is not configured. Set INDIANKANOON_API_TOKEN in your .env file and restart the server." });
+    return;
+  }
+  const s = (v: unknown) => (typeof v === "string" && v ? v : undefined);
+  try {
+    res.json(
+      await ik.search({
+        q: s(req.query.q) ?? "",
+        doctype: s(req.query.court),
+        fromDate: s(req.query.from),
+        toDate: s(req.query.to),
+        sortBy: s(req.query.sort) as ik.SearchParams["sortBy"],
+        page: Number(req.query.page ?? 0) || 0,
+      }),
+    );
+  } catch (e) {
+    const status = e instanceof ik.IKError ? e.status : 502;
+    res.status(status >= 400 && status < 600 ? status : 502).json({ error: e instanceof Error ? e.message : String(e) });
+  }
+});
+
+app.get("/api/ik/courts", (_req, res) => res.json(ik.DOCTYPES));
 
 if (process.env.NODE_ENV === "production") {
   const dist = path.resolve(here, "../dist");
@@ -250,5 +282,7 @@ if (process.env.NODE_ENV === "production") {
 }
 
 app.listen(PORT, () => {
-  console.log(`EnkLaw API listening on http://localhost:${PORT} (model: ${MODEL}, AI ${aiConfigured ? "enabled" : "NOT configured"}, CourtListener ${cl.clConfigured() ? "enabled" : "NOT configured"})`);
+  console.log(
+    `EnkLaw API on http://localhost:${PORT} (model: ${MODEL}, AI ${aiConfigured ? "enabled" : "NOT configured"}, Indian Kanoon ${ik.ikConfigured() ? "enabled" : "NOT configured"})`,
+  );
 });

@@ -1,20 +1,13 @@
 import { useRef, useState } from "react";
-import type { Case, Note } from "../lib/types";
-import { updateCase } from "../lib/store";
-import { uid } from "../lib/id";
-import { streamPost } from "../lib/api";
-import { caseContext } from "../lib/context";
-import { Markdown } from "../components/Markdown";
-import { AiGate } from "../components/AiGate";
-import { Field, Section } from "../components/ui";
-
-const readAsBase64 = (f: File) =>
-  new Promise<string>((resolve, reject) => {
-    const r = new FileReader();
-    r.onload = () => resolve(String(r.result).split(",")[1] ?? "");
-    r.onerror = () => reject(r.error);
-    r.readAsDataURL(f);
-  });
+import type { Case, Note } from "../../lib/types";
+import { updateCase } from "../../lib/store";
+import { uid } from "../../lib/id";
+import { streamPost, toUpload } from "../../lib/api";
+import { caseContext } from "../../lib/context";
+import { Markdown } from "../../components/Markdown";
+import { AiGate } from "../../components/Gates";
+import { Field, Section } from "../../components/ui";
+import { fmt } from "../../lib/dates";
 
 function useStream() {
   const [out, setOut] = useState("");
@@ -57,24 +50,21 @@ function Analyzer({ c, aiReady }: { c: Case; aiReady: boolean }) {
   const s = useStream();
 
   const analyze = async () => {
-    const body: Record<string, string> = { caseContext: caseContext(c), title: title || file?.name || "Document" };
-    if (file && file.type === "application/pdf") body.pdfBase64 = await readAsBase64(file);
-    else if (file) body.text = await file.text();
-    else body.text = text;
+    const upload = file ? await toUpload(file) : { title: title || "Document", text };
+    const body = { caseContext: caseContext(c), ...upload, title: title || upload.title };
     s.run("/api/analyze", body);
   };
 
   return (
     <Section title="Analyze a court document">
       <p className="muted small">
-        Upload a complaint, motion, order, letter or notice (PDF or text) — or paste its text — to get a plain-English summary, deadlines it triggers, and
-        next steps.
+        Upload a plaint, petition, reply, notice, chargesheet or judgment (PDF, photo or text) to get a summary, the dates and limitation it triggers, and next steps.
       </p>
       <div className="form-grid">
-        <Field label="Upload PDF or text file">
+        <Field label="Upload PDF, photo or text file">
           <input
             type="file"
-            accept=".pdf,.txt,.md,.eml,.html,text/*,application/pdf"
+            accept=".pdf,.txt,.md,text/*,application/pdf,image/*"
             onChange={(e) => {
               const f = e.target.files?.[0] ?? null;
               setFile(f);
@@ -83,7 +73,7 @@ function Analyzer({ c, aiReady }: { c: Case; aiReady: boolean }) {
           />
         </Field>
         <Field label="Title">
-          <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Summons and complaint" />
+          <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Counter affidavit of Respondent No. 2" />
         </Field>
       </div>
       {!file && (
@@ -116,7 +106,7 @@ function Analyzer({ c, aiReady }: { c: Case; aiReady: boolean }) {
 }
 
 function HearingPrep({ c, aiReady }: { c: Case; aiReady: boolean }) {
-  const hearings = c.deadlines.filter((d) => !d.done && (d.kind === "hearing" || d.kind === "trial" || d.kind === "meeting"));
+  const hearings = c.hearings.filter((h) => !h.outcome).sort((a, b) => a.date.localeCompare(b.date)).map((h) => ({ id: h.id, title: h.purpose || "Hearing", date: fmt(h.date) }));
   const [hearing, setHearing] = useState(hearings[0] ? `${hearings[0].title} on ${hearings[0].date}` : "");
   const [notes, setNotes] = useState("");
   const s = useStream();
@@ -136,7 +126,7 @@ function HearingPrep({ c, aiReady }: { c: Case; aiReady: boolean }) {
               <option value="">Other…</option>
             </select>
           ) : (
-            <input value={hearing} onChange={(e) => setHearing(e.target.value)} placeholder="Motion hearing, trial, mediation…" />
+            <input value={hearing} onChange={(e) => setHearing(e.target.value)} placeholder="Admission hearing, final arguments, bail hearing…" />
           )}
         </Field>
         {hearings.length > 0 && hearing === "" && (

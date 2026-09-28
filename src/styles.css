@@ -220,3 +220,32 @@ a.btn { text-decoration: none; }
 .check { display: flex; gap: 8px; align-items: flex-start; font-size: 0.85rem; cursor: pointer; }
 .check input { margin-top: 3px; flex: none; }
 .row select { width: auto; }
+
+/* ---- India case diary ---- */
+.new-case { margin-top: 14px; justify-content: center; }
+.case-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; flex-wrap: wrap; }
+.next-date { display: flex; flex-direction: column; align-items: flex-end; text-align: right; background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); padding: 8px 14px; }
+.next-date strong { font-size: 1.25rem; color: var(--accent); font-family: Georgia, serif; }
+.week { display: flex; gap: 6px; align-items: stretch; overflow-x: auto; }
+.week input[type="date"] { width: auto; }
+.day { all: unset; cursor: pointer; display: flex; flex-direction: column; align-items: center; min-width: 58px; padding: 6px 4px; border-radius: 10px; background: var(--panel); border: 1px solid var(--border); }
+.day.active { background: var(--accent); color: var(--accent-text); border-color: var(--accent); }
+.day .count { font-size: 0.72rem; border-radius: 99px; padding: 0 7px; margin-top: 2px; color: var(--muted); }
+.day .count.has { background: var(--gold); color: #fff; }
+.day.active .count { color: inherit; }
+.table tr.clickable { cursor: pointer; }
+.table tr.clickable:hover td { background: var(--panel-2); }
+td.item { font-weight: 700; font-size: 1.1rem; color: var(--accent); width: 56px; }
+.small-btn { padding: 4px 10px; font-size: 0.85rem; }
+.update-form { display: flex; flex-direction: column; gap: 10px; padding: 10px 0; }
+.update-form > * + * { margin-top: 0; }
+.filters { display: flex; gap: 8px; flex-wrap: wrap; }
+.filters input { flex: 2; min-width: 220px; }
+.filters select { flex: 1; min-width: 160px; width: auto; }
+.official { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; background: color-mix(in srgb, var(--accent) 8%, var(--panel)); border: 1px solid var(--border); padding: 10px 12px; border-radius: var(--radius); }
+.nowrap-row { flex-wrap: nowrap; }
+.nowrap-row input { flex: 1; }
+.nowrap-row select { width: auto; }
+.timeline li { grid-template-columns: 120px 1fr; }
+.tl-date .badge { display: inline-block; margin-top: 4px; }
+.entry-no { min-width: 96px; }

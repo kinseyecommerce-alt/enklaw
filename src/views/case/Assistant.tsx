@@ -1,25 +1,25 @@
 import { useEffect, useRef, useState } from "react";
-import type { Case, ChatMessage } from "../lib/types";
-import { updateCase } from "../lib/store";
-import { chat } from "../lib/api";
-import { caseContext } from "../lib/context";
-import { Markdown } from "../components/Markdown";
-import { AiGate } from "../components/AiGate";
+import type { Case, ChatMessage } from "../../lib/types";
+import { updateCase } from "../../lib/store";
+import { chat } from "../../lib/api";
+import { caseContext } from "../../lib/context";
+import { Markdown } from "../../components/Markdown";
+import { AiGate } from "../../components/Gates";
 
 const STARTERS = [
-  "What are my next steps and upcoming deadlines?",
-  "Explain the procedure for my type of case in plain English.",
-  "What are the weaknesses in my case and how can I address them?",
-  "What evidence am I missing to prove my claims?",
-  "How do I properly serve documents on the other party?",
+  "What should I do before the next date of hearing?",
+  "Summarise the case and hearing history for my client.",
+  "Is anything pending from the last order? Any limitation issue?",
+  "Find Supreme Court judgments that support our case.",
+  "इस केस की स्थिति हिंदी में समझाइए।",
 ];
 
-export function Assistant({ c, aiReady, clReady }: { c: Case; aiReady: boolean; clReady: boolean }) {
+export function Assistant({ c, aiReady, ikReady }: { c: Case; aiReady: boolean; ikReady: boolean }) {
   const [input, setInput] = useState("");
   const [streaming, setStreaming] = useState<string | null>(null);
   const [webSearch, setWebSearch] = useState(false);
-  const [caseLaw, setCaseLaw] = useState(clReady);
-  useEffect(() => setCaseLaw(clReady), [clReady]);
+  const [research, setResearch] = useState(ikReady);
+  useEffect(() => setResearch(ikReady), [ikReady]);
   const abort = useRef<AbortController | null>(null);
   const bottom = useRef<HTMLDivElement>(null);
 
@@ -39,7 +39,7 @@ export function Assistant({ c, aiReady, clReady }: { c: Case; aiReady: boolean; 
       setStreaming(t);
     };
     try {
-      await chat(caseContext(c), history, { webSearch, caseLaw: caseLaw && clReady }, onText, abort.current.signal);
+      await chat(caseContext(c), history, { webSearch, research: research && ikReady }, onText, abort.current.signal);
     } catch (e) {
       const aborted = e instanceof DOMException && e.name === "AbortError";
       reply += aborted ? "\n\n_[stopped]_" : `\n\n[Error: ${e instanceof Error ? e.message : String(e)}]`;
@@ -54,7 +54,7 @@ export function Assistant({ c, aiReady, clReady }: { c: Case; aiReady: boolean; 
       <div className="chat-log">
         {c.chat.length === 0 && streaming === null && (
           <div className="starters">
-            <p className="muted">Ask anything about your case. The assistant sees your case details, deadlines, evidence, timeline and notes.</p>
+            <p className="muted">Ask anything about your case. The assistant sees the case details, hearing history, orders, compliances, annexures and notes. Ask in English or Hindi.</p>
             {STARTERS.map((s) => (
               <button key={s} className="chip" onClick={() => send(s)} disabled={!aiReady}>
                 {s}
@@ -84,7 +84,7 @@ export function Assistant({ c, aiReady, clReady }: { c: Case; aiReady: boolean; 
         <textarea
           rows={3}
           value={input}
-          placeholder="Ask about procedure, deadlines, evidence, what to say at a hearing…"
+          placeholder="Ask about procedure, limitation, the last order, what to argue on the next date…"
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={(e) => {
             if (e.key === "Enter" && !e.shiftKey) {
@@ -95,9 +95,9 @@ export function Assistant({ c, aiReady, clReady }: { c: Case; aiReady: boolean; 
         />
         <div className="row between">
           <div className="row" style={{ gap: 16 }}>
-            <label className="check" title={clReady ? "" : "Add COURTLISTENER_API_TOKEN to .env to enable"}>
-              <input type="checkbox" disabled={!clReady} checked={caseLaw && clReady} onChange={(e) => setCaseLaw(e.target.checked)} /> Research & verify case law
-              (CourtListener)
+            <label className="check" title={ikReady ? "" : "Add INDIANKANOON_API_TOKEN to .env to enable"}>
+              <input type="checkbox" disabled={!ikReady} checked={research && ikReady} onChange={(e) => setResearch(e.target.checked)} /> Research judgments
+              (Indian Kanoon)
             </label>
             <label className="check">
               <input type="checkbox" checked={webSearch} onChange={(e) => setWebSearch(e.target.checked)} /> Search the web
