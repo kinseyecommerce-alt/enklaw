@@ -33,8 +33,41 @@ const aiConfigured = Boolean(process.env.ANTHROPIC_API_KEY || process.env.ANTHRO
 const app = express();
 app.use(express.json({ limit: "25mb" }));
 
-app.get("/api/health", (_req, res) => {
-  res.json({ ok: true, aiConfigured, model: MODEL, indianKanoon: ik.ikConfigured() });
+// The Android / iOS apps load from capacitor://localhost or https://localhost and call this
+// server cross-origin. Allow those origins (and any listed in ENKLAW_ALLOWED_ORIGINS).
+const ALLOWED_ORIGINS = new Set([
+  "capacitor://localhost",
+  "https://localhost",
+  "http://localhost",
+  ...(process.env.ENKLAW_ALLOWED_ORIGINS ?? "").split(",").map((s) => s.trim()).filter(Boolean),
+]);
+app.use((req, res, next) => {
+  const origin = req.headers.origin;
+  if (origin && ALLOWED_ORIGINS.has(origin)) {
+    res.setHeader("Access-Control-Allow-Origin", origin);
+    res.setHeader("Vary", "Origin");
+    res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
+    res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+  }
+  if (req.method === "OPTIONS") {
+    res.sendStatus(204);
+    return;
+  }
+  next();
+});
+
+// When the server is reachable from the internet, set ENKLAW_ACCESS_TOKEN so only your apps can
+// spend your Anthropic / Indian Kanoon credit. The apps send it as "Authorization: Bearer <token>".
+const ACCESS_TOKEN = process.env.ENKLAW_ACCESS_TOKEN?.trim() ?? "";
+app.use("/api", (req, res, next) => {
+  if (!ACCESS_TOKEN || req.path === "/health") return next();
+  if (req.headers.authorization === `Bearer ${ACCESS_TOKEN}`) return next();
+  res.status(401).json({ error: "Wrong or missing access code. Enter the server's access code in Settings." });
+});
+
+app.get("/api/health", (req, res) => {
+  const authOk = !ACCESS_TOKEN || req.headers.authorization === `Bearer ${ACCESS_TOKEN}`;
+  res.json({ ok: true, authOk, aiConfigured: authOk && aiConfigured, model: MODEL, indianKanoon: authOk && ik.ikConfigured() });
 });
 
 const COMMON = {

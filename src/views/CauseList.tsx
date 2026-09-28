@@ -5,6 +5,7 @@ import { caseNo, courtShort } from "../lib/courts";
 import { addDays, fmt, fmtLong, todayISO, daysUntil } from "../lib/dates";
 import { toICS } from "../lib/ics";
 import { downloadFile, printMarkdown } from "../lib/download";
+import { isNative, shareText } from "../lib/native";
 import { HearingUpdateForm } from "../components/HearingUpdateForm";
 import { DueBadge, Empty, Section } from "../components/ui";
 
@@ -82,12 +83,17 @@ export function CauseList({ cases, openCase }: { cases: Case[]; openCase: (id: s
               <button
                 className="btn"
                 onClick={async () => {
-                  await navigator.clipboard.writeText(boardText());
-                  setCopied(true);
-                  setTimeout(() => setCopied(false), 1500);
+                  try {
+                    if ((await shareText(`Cause list ${fmt(date)}`, boardText())) === "copied") {
+                      setCopied(true);
+                      setTimeout(() => setCopied(false), 1500);
+                    }
+                  } catch {
+                    // share sheet dismissed or clipboard refused
+                  }
                 }}
               >
-                {copied ? "Copied" : "Copy for WhatsApp"}
+                {copied ? "Copied" : isNative() ? "Share on WhatsApp" : "Copy for WhatsApp"}
               </button>
               <button className="btn" onClick={() => printMarkdown(`Cause list ${fmt(date)}`, boardText().replace(/\*/g, "**").replace(/\n/g, "\n\n"))}>
                 Print
@@ -99,7 +105,7 @@ export function CauseList({ cases, openCase }: { cases: Case[]; openCase: (id: s
         {list.length === 0 ? (
           <Empty title="No matters listed">Add hearing dates inside a case, or record a next date when you update a hearing.</Empty>
         ) : (
-          <table className="table">
+          <table className="table cause-table">
             <thead>
               <tr>
                 <th>Item</th>

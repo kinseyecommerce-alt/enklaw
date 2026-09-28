@@ -404,3 +404,59 @@ a.badge { text-decoration: none; }
   background: var(--accent-soft); border: 1px solid color-mix(in srgb, var(--accent) 22%, transparent); color: var(--text);
   border-radius: var(--radius-sm); padding: 10px 14px; font-size: 0.86rem; margin-bottom: 18px;
 }
+
+/* ---------- Phone layout: top bar + bottom tab bar (web on phones and the native apps) ---------- */
+.mobile-top, .bottom-nav { display: none; }
+@media (max-width: 900px) {
+  .app { display: block; }
+  .sidebar { display: none; }
+  .mobile-top {
+    display: flex; align-items: center; justify-content: space-between; gap: 10px;
+    position: sticky; top: 0; z-index: 20;
+    padding: calc(10px + env(safe-area-inset-top, 0px)) 16px 10px;
+    background: linear-gradient(180deg, var(--side-bg), var(--side-bg-2)); color: #fff;
+  }
+  .mobile-top .brand { padding: 0; font-size: 1.25rem; }
+  .mobile-top .logo { width: 30px; height: 30px; border-radius: 8px; }
+  .mobile-top .logo svg { width: 18px; height: 18px; }
+  .mobile-top .btn.primary {
+    background: linear-gradient(145deg, var(--side-active), var(--gold)); color: var(--side-bg); border: 0; padding: 7px 12px; font-size: 0.88rem;
+  }
+  .bottom-nav {
+    display: grid; grid-template-columns: repeat(5, 1fr);
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 20;
+    padding: 6px 4px calc(6px + env(safe-area-inset-bottom, 0px));
+    background: var(--side-bg); border-top: 1px solid rgba(255, 255, 255, 0.08);
+  }
+  .bottom-nav button {
+    all: unset; cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 3px;
+    padding: 5px 2px; border-radius: 10px; color: var(--side-muted); font-size: 0.68rem; font-weight: 600;
+  }
+  .bottom-nav button svg { width: 22px; height: 22px; }
+  .bottom-nav button.active { color: var(--side-active); }
+  .bottom-nav button.active svg { filter: drop-shadow(0 0 6px color-mix(in srgb, var(--side-active) 45%, transparent)); }
+  .main { padding: 16px 16px calc(88px + env(safe-area-inset-bottom, 0px)); }
+  h1 { font-size: 1.55rem; }
+  .stats { gap: 10px; }
+  .stat { padding: 12px 14px; }
+  .stat .num { font-size: 1.6rem; }
+  .chat { height: calc(100vh - 260px); }
+}
+
+/* Cause list as cards on phones */
+@media (max-width: 640px) {
+  .card:has(> .cause-table) { overflow-x: visible; }
+  .card > .table.cause-table { min-width: 0; }
+  .cause-table thead { display: none; }
+  .cause-table, .cause-table tbody { display: block; }
+  .cause-table tr { display: grid; grid-template-columns: 48px 1fr; gap: 2px 10px; padding: 12px 0; border-bottom: 1px solid var(--border); }
+  .cause-table tr:last-child { border-bottom: 0; }
+  .cause-table td { display: block; padding: 0; border: 0; }
+  .cause-table td.item { grid-row: span 4; font-size: 1.5rem; }
+  .cause-table td[colspan] { grid-column: 1 / -1; }
+  .cause-table td:last-child { margin-top: 6px; }
+}
+@media (max-width: 640px) {
+  .themes { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .theme-card .swatch { height: 56px; }
+}

@@ -22,6 +22,7 @@ import { Notes } from "./views/case/Notes";
 import { Icon } from "./components/Icons";
 import { useTheme } from "./lib/theme";
 import { IS_DEMO } from "./lib/demo";
+import { isNative, setupStatusBar, syncReminders } from "./lib/native";
 
 const TABS = [
   ["overview", "Details"],
@@ -53,9 +54,20 @@ export function App() {
   const [health, setHealth] = useState<Health | null>(null);
   const [theme, setTheme] = useTheme();
 
-  useEffect(() => {
+  const refreshHealth = () => {
     getHealth().then(setHealth);
+  };
+  useEffect(refreshHealth, []);
+  useEffect(() => {
+    setupStatusBar();
   }, []);
+
+  // Keep phone reminders in step with the diary (debounced so typing doesn't reschedule constantly).
+  useEffect(() => {
+    if (!isNative()) return;
+    const t = setTimeout(() => syncReminders(cases).catch(() => {}), 1500);
+    return () => clearTimeout(t);
+  }, [cases]);
 
   const current = route.page === "case" ? cases.find((c) => c.id === route.id) : undefined;
   useEffect(() => {
@@ -112,6 +124,35 @@ export function App() {
         </div>
       </aside>
 
+      <header className="mobile-top">
+        <button className="brand" onClick={() => setRoute({ page: "causelist" })}>
+          <span className="logo">{Icon.scales}</span>
+          EnkLaw
+        </button>
+        <button
+          className="btn primary"
+          onClick={() => {
+            const c = newCase();
+            openCase(c.id);
+          }}
+        >
+          {Icon.plus} New case
+        </button>
+      </header>
+
+      <nav className="bottom-nav" aria-label="Main">
+        {[...NAV, ["settings", "Settings", Icon.settings] as [Page, string, JSX.Element]].map(([page, label, icon]) => (
+          <button
+            key={page}
+            className={route.page === page || (page === "cases" && route.page === "case") ? "active" : ""}
+            onClick={() => setRoute({ page })}
+          >
+            {icon}
+            <span>{label}</span>
+          </button>
+        ))}
+      </nav>
+
       <main className="main">
         {IS_DEMO && (
           <div className="demo-banner">
@@ -123,7 +164,7 @@ export function App() {
         {route.page === "cases" && <Cases cases={cases} openCase={openCase} />}
         {route.page === "limitation" && <Limitation />}
         {route.page === "judgments" && <Judgments cases={cases} ikReady={ikReady} />}
-        {route.page === "settings" && <Settings health={health} theme={theme} setTheme={setTheme} />}
+        {route.page === "settings" && <Settings health={health} theme={theme} setTheme={setTheme} cases={cases} refreshHealth={refreshHealth} />}
         {route.page === "case" && current && (
           <>
             <header className="case-head">

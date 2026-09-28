@@ -1,15 +1,24 @@
 import type { ChatMessage } from "./types";
+import { apiHeaders, apiUrl, getServer } from "./server";
+import { isNative } from "./native";
 
 export interface Health {
   ok: boolean;
+  authOk?: boolean;
   aiConfigured: boolean;
   model: string;
   indianKanoon: boolean;
 }
 
+/** fetch() against the configured EnkLaw server, with its access code attached. */
+function apiFetch(path: string, init: RequestInit = {}): Promise<Response> {
+  if (isNative() && !getServer().url) return Promise.reject(new Error("Set the EnkLaw server address in Settings to use this feature."));
+  return fetch(apiUrl(path), { ...init, headers: apiHeaders((init.headers as Record<string, string>) ?? {}) });
+}
+
 export async function getHealth(): Promise<Health | null> {
   try {
-    const r = await fetch("/api/health");
+    const r = await apiFetch("/api/health");
     return r.ok ? ((await r.json()) as Health) : null;
   } catch {
     return null;
@@ -18,7 +27,7 @@ export async function getHealth(): Promise<Health | null> {
 
 /** POSTs JSON and streams the plain-text response, calling onText with the accumulated text. */
 export async function streamPost(path: string, body: unknown, onText: (full: string) => void, signal?: AbortSignal): Promise<string> {
-  const res = await fetch(path, {
+  const res = await apiFetch(path, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
@@ -90,7 +99,7 @@ export interface OrderExtract {
 }
 
 export const readOrder = (caseContext: string, upload: Upload) =>
-  fetch("/api/read-order", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ caseContext, ...upload }) }).then(
+  apiFetch("/api/read-order", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ caseContext, ...upload }) }).then(
     (r) => json<OrderExtract>(r),
   );
 
@@ -105,9 +114,9 @@ export interface Judgment {
 }
 
 export const ik = {
-  courts: () => fetch("/api/ik/courts").then((r) => json<Record<string, string>>(r)),
+  courts: () => apiFetch("/api/ik/courts").then((r) => json<Record<string, string>>(r)),
   search: (p: { q: string; court?: string; from?: string; to?: string; sort?: string; page?: number }) => {
     const qs = new URLSearchParams(Object.entries(p).filter(([, v]) => v !== undefined && v !== "").map(([k, v]) => [k, String(v)]));
-    return fetch(`/api/ik/search?${qs}`).then((r) => json<{ found: string; page: number; results: Judgment[] }>(r));
+    return apiFetch(`/api/ik/search?${qs}`).then((r) => json<{ found: string; page: number; results: Judgment[] }>(r));
   },
 };

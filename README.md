@@ -39,6 +39,36 @@ The diary, cause list and limitation calculator work without any keys.
 
 Production build on one port: `npm run build && npm start` → http://localhost:8787
 
+## Android and iPhone apps
+
+The same app ships as native Android and iOS apps (Capacitor, in `android/` and `ios/`). The phone apps keep your diary on the phone, show a bottom tab bar, share cause lists and documents through the phone's share sheet (WhatsApp, Drive, Files), and send **hearing reminders** (the evening before and the morning of each listing, and when a compliance is due; turn them on in Settings).
+
+AI, drafting, the order reader and judgment search run on the EnkLaw server, which holds your API keys. For the phone apps, host the server somewhere reachable over HTTPS (any Node host), set `ENKLAW_ACCESS_TOKEN` there, and enter the server address and access code in the app's **Settings → EnkLaw server**.
+
+### Android
+
+- **Download a ready APK:** every push runs the **Android APK** GitHub Action; open the run and download `enklaw-android-debug` from Artifacts. On the phone, allow "Install unknown apps" for your browser or Files app, then open the APK.
+- **Build it yourself** (needs Android Studio or the Android SDK and JDK 21):
+  ```bash
+  npm run build && npx cap sync android
+  npx cap open android          # then Run ▶ in Android Studio
+  # or: cd android && ./gradlew assembleDebug  → android/app/build/outputs/apk/debug/app-debug.apk
+  ```
+- **Play Store:** build a signed release (`./gradlew bundleRelease` with your keystore) and upload the `.aab` in the Google Play Console (one-time $25 developer fee).
+
+### iPhone (needs a Mac with Xcode)
+
+```bash
+npm run build && npx cap sync ios
+npx cap open ios                # opens Xcode
+```
+
+In Xcode, choose the **App** target → *Signing & Capabilities* → pick your Apple ID team, connect your iPhone and press Run ▶. A free Apple ID works for your own phone (the app must be re-installed every 7 days); an Apple Developer account ($99/year) removes that limit and lets you use TestFlight or the App Store.
+
+Without a Mac you can still add EnkLaw to the iPhone home screen: open the hosted web app in Safari → Share → **Add to Home Screen**.
+
+After changing the web code, run `npm run build && npx cap sync` before building the native apps again.
+
 ## Getting case status from courts
 
 Indian court portals (sci.gov.in, eCourts, High Court sites, tribunals) offer **no public API**, and their search pages require a CAPTCHA typed by a person. Apps like Court Assistant fetch status from those official sites on their own servers. EnkLaw currently:

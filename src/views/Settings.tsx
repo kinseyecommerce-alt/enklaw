@@ -4,12 +4,28 @@ import { exportData, importData } from "../lib/store";
 import { downloadFile } from "../lib/download";
 import { Section } from "../components/ui";
 import { THEMES, type ThemeId } from "../lib/theme";
+import type { Case } from "../lib/types";
+import { RemindersSection, ServerSection } from "../components/MobileSettings";
 
-export function Settings({ health, theme, setTheme }: { health: Health | null; theme: ThemeId; setTheme: (t: ThemeId) => void }) {
+export function Settings({
+  health,
+  theme,
+  setTheme,
+  cases,
+  refreshHealth,
+}: {
+  health: Health | null;
+  theme: ThemeId;
+  setTheme: (t: ThemeId) => void;
+  cases: Case[];
+  refreshHealth: () => void;
+}) {
   const [msg, setMsg] = useState("");
   return (
     <div className="page narrow">
       <h1>Settings</h1>
+      <RemindersSection cases={cases} />
+      <ServerSection health={health} onChange={refreshHealth} />
       <Section title="Appearance">
         <div className="themes">
           {THEMES.map((t) => (
