@@ -33,12 +33,34 @@ export function CauseList({ cases, openCase }: { cases: Case[]; openCase: (id: s
   return (
     <div className="page">
       <div className="row between">
-        <h1>Cause list</h1>
+        <div>
+          <div className="eyebrow">{greeting()}</div>
+          <h1>Cause list</h1>
+        </div>
         <div className="row">
           <button className="btn" onClick={() => downloadFile("enklaw-hearings.ics", toICS(cases, today), "text/calendar")} disabled={!cases.length}>
             Export to calendar
           </button>
         </div>
+      </div>
+
+      <div className="stats">
+        <button className="stat" style={{ ["--tone" as string]: "var(--accent)" }} onClick={() => setDate(today)}>
+          <span className="num">{causeList(cases, today).length}</span>
+          <span className="lbl">Listed today</span>
+        </button>
+        <button className="stat" style={{ ["--tone" as string]: "var(--bad)" }} onClick={() => document.getElementById("stale")?.scrollIntoView({ behavior: "smooth" })}>
+          <span className="num">{stale.length}</span>
+          <span className="lbl">Not updated</span>
+        </button>
+        <button className="stat" style={{ ["--tone" as string]: "var(--gold)" }} onClick={() => document.getElementById("tasks")?.scrollIntoView({ behavior: "smooth" })}>
+          <span className="num">{tasks.length}</span>
+          <span className="lbl">Compliances this week</span>
+        </button>
+        <button className="stat" style={{ ["--tone" as string]: "var(--ok)" }}>
+          <span className="num">{cases.filter((c) => c.status !== "disposed").length}</span>
+          <span className="lbl">Pending cases</span>
+        </button>
       </div>
 
       <div className="week">
@@ -130,6 +152,7 @@ export function CauseList({ cases, openCase }: { cases: Case[]; openCase: (id: s
       </Section>
 
       <div className="grid-2">
+        <div id="stale">
         <Section title={`Not updated (${stale.length})`}>
           {stale.length === 0 ? (
             <Empty title="All hearings updated" />
@@ -153,7 +176,8 @@ export function CauseList({ cases, openCase }: { cases: Case[]; openCase: (id: s
           )}
         </Section>
 
-        <div className="stack">
+        </div>
+        <div className="stack" id="tasks">
           <Section title={`Compliances due this week (${tasks.length})`}>
             {tasks.length === 0 ? (
               <Empty title="Nothing due" />
@@ -195,4 +219,10 @@ export function CauseList({ cases, openCase }: { cases: Case[]; openCase: (id: s
       </div>
     </div>
   );
+}
+
+function greeting() {
+  const h = new Date().getHours();
+  const part = h < 12 ? "Good morning" : h < 17 ? "Good afternoon" : "Good evening";
+  return `${part} · ${new Date().toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "long" })}`;
 }

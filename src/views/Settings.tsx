@@ -3,12 +3,39 @@ import type { Health } from "../lib/api";
 import { exportData, importData } from "../lib/store";
 import { downloadFile } from "../lib/download";
 import { Section } from "../components/ui";
+import { THEMES, type ThemeId } from "../lib/theme";
 
-export function Settings({ health }: { health: Health | null }) {
+export function Settings({ health, theme, setTheme }: { health: Health | null; theme: ThemeId; setTheme: (t: ThemeId) => void }) {
   const [msg, setMsg] = useState("");
   return (
     <div className="page narrow">
-      <h1>Settings & backup</h1>
+      <h1>Settings</h1>
+      <Section title="Appearance">
+        <div className="themes">
+          {THEMES.map((t) => (
+            <button key={t.id} className={`theme-card ${theme === t.id ? "on" : ""}`} onClick={() => setTheme(t.id)}>
+              <span
+                className="swatch"
+                style={t.id === "system" ? { background: `linear-gradient(135deg, #f5f1e8 50%, #0c111b 50%)` } : { background: t.bg }}
+              >
+                <span style={{ background: t.side }} />
+                <span>
+                  <i style={{ background: t.accent, width: "80%" }} />
+                  <i style={{ background: t.gold, width: "50%" }} />
+                  <i style={{ background: t.accent, width: "65%", opacity: 0.35 }} />
+                </span>
+              </span>
+              <span className="label">
+                {t.name}
+                {theme === t.id && <span className="badge ok">On</span>}
+              </span>
+              <span className="hint" style={{ padding: "0 12px 10px", display: "block" }}>
+                {t.note}
+              </span>
+            </button>
+          ))}
+        </div>
+      </Section>
       <Section title="AI assistant (Claude)">
         {health == null ? (
           <p>

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type JSX } from "react";
 import { useCases, newCase } from "./lib/store";
 import { getHealth, type Health } from "./lib/api";
 import { caseNo, courtLabel } from "./lib/courts";
@@ -19,6 +19,8 @@ import { Assistant } from "./views/case/Assistant";
 import { Drafts } from "./views/case/Drafts";
 import { Tools } from "./views/case/Tools";
 import { Notes } from "./views/case/Notes";
+import { Icon } from "./components/Icons";
+import { useTheme } from "./lib/theme";
 
 const TABS = [
   ["overview", "Details"],
@@ -37,17 +39,18 @@ type Tab = (typeof TABS)[number][0];
 type Page = "causelist" | "cases" | "limitation" | "judgments" | "settings";
 type Route = { page: Page } | { page: "case"; id: string; tab: Tab };
 
-const NAV: [Page, string][] = [
-  ["causelist", "Cause list"],
-  ["cases", "Cases"],
-  ["limitation", "Limitation calculator"],
-  ["judgments", "Judgments"],
+const NAV: [Page, string, JSX.Element][] = [
+  ["causelist", "Cause list", Icon.list],
+  ["cases", "Cases", Icon.folder],
+  ["limitation", "Limitation", Icon.hourglass],
+  ["judgments", "Judgments", Icon.book],
 ];
 
 export function App() {
   const cases = useCases();
   const [route, setRoute] = useState<Route>({ page: "causelist" });
   const [health, setHealth] = useState<Health | null>(null);
+  const [theme, setTheme] = useTheme();
 
   useEffect(() => {
     getHealth().then(setHealth);
@@ -67,11 +70,16 @@ export function App() {
     <div className="app">
       <aside className="sidebar">
         <button className="brand" onClick={() => setRoute({ page: "causelist" })}>
-          <span className="logo">⚖</span> EnkLaw
+          <span className="logo">{Icon.scales}</span>
+          <span>
+            EnkLaw
+            <small>Case diary</small>
+          </span>
         </button>
         <nav>
-          {NAV.map(([page, label]) => (
+          {NAV.map(([page, label, icon]) => (
             <button key={page} className={route.page === page ? "nav active" : "nav"} onClick={() => setRoute({ page })}>
+              {icon}
               {label}
             </button>
           ))}
@@ -82,12 +90,13 @@ export function App() {
               openCase(c.id);
             }}
           >
-            + New case
+            {Icon.plus} New case
           </button>
         </nav>
         <div className="sidebar-foot">
           <button className={route.page === "settings" ? "nav active" : "nav"} onClick={() => setRoute({ page: "settings" })}>
-            Settings & backup
+            {Icon.settings}
+            Settings
           </button>
           <div className="ai-status" title={health?.model}>
             <span className={`dot ${aiReady ? "on" : "off"}`} />
@@ -107,7 +116,7 @@ export function App() {
         {route.page === "cases" && <Cases cases={cases} openCase={openCase} />}
         {route.page === "limitation" && <Limitation />}
         {route.page === "judgments" && <Judgments cases={cases} ikReady={ikReady} />}
-        {route.page === "settings" && <Settings health={health} />}
+        {route.page === "settings" && <Settings health={health} theme={theme} setTheme={setTheme} />}
         {route.page === "case" && current && (
           <>
             <header className="case-head">
