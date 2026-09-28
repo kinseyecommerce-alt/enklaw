@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en" data-theme="ivory">
+<html lang="en" data-enk-theme="ivory">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -16,7 +16,7 @@
       try {
         var t = localStorage.getItem("enklaw:theme") || "ivory";
         if (t === "system") t = matchMedia("(prefers-color-scheme: dark)").matches ? "midnight" : "ivory";
-        document.documentElement.dataset.theme = t;
+        document.documentElement.dataset.enkTheme = t;
       } catch (e) {}
     </script>
   </head>

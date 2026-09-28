@@ -1,11 +1,11 @@
 /* =====================================================================
    EnkLaw design system
    Themes: ivory (default), midnight (dark), chambers (green & brass).
-   Set with <html data-theme="…">; "system" resolves to ivory / midnight.
+   Set with <html data-enk-theme="…">; "system" resolves to ivory / midnight.
    ===================================================================== */
 
 :root,
-:root[data-theme="ivory"] {
+:root[data-enk-theme="ivory"] {
   --bg: #f5f1e8;
   --bg-grad: radial-gradient(1200px 600px at 100% -10%, #efe5cf 0%, transparent 60%);
   --panel: #fffdf8;
@@ -35,7 +35,7 @@
   --shadow-lg: 0 18px 40px -18px rgba(19, 32, 58, 0.35);
 }
 
-:root[data-theme="midnight"] {
+:root[data-enk-theme="midnight"] {
   --bg: #0c111b;
   --bg-grad: radial-gradient(900px 500px at 100% -10%, #1a2540 0%, transparent 60%);
   --panel: #131a28;
@@ -65,7 +65,7 @@
   --shadow-lg: 0 18px 40px -18px rgba(0, 0, 0, 0.7);
 }
 
-:root[data-theme="chambers"] {
+:root[data-enk-theme="chambers"] {
   --bg: #eef0ea;
   --bg-grad: radial-gradient(1100px 600px at 100% -10%, #e1e6d6 0%, transparent 60%);
   --panel: #fcfdf9;
@@ -107,7 +107,7 @@
   -webkit-font-smoothing: antialiased;
   color-scheme: light;
 }
-:root[data-theme="midnight"] { color-scheme: dark; }
+:root[data-enk-theme="midnight"] { color-scheme: dark; }
 
 * { box-sizing: border-box; }
 body { margin: 0; background: var(--bg) var(--bg-grad) no-repeat fixed; min-height: 100vh; }
@@ -399,4 +399,8 @@ a.badge { text-decoration: none; }
 @media (max-width: 900px) {
   .card:has(> .table) { overflow-x: auto; }
   .card > .table { min-width: 640px; }
+}
+.demo-banner {
+  background: var(--accent-soft); border: 1px solid color-mix(in srgb, var(--accent) 22%, transparent); color: var(--text);
+  border-radius: var(--radius-sm); padding: 10px 14px; font-size: 0.86rem; margin-bottom: 18px;
 }

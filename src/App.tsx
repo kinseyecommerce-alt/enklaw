@@ -21,6 +21,7 @@ import { Tools } from "./views/case/Tools";
 import { Notes } from "./views/case/Notes";
 import { Icon } from "./components/Icons";
 import { useTheme } from "./lib/theme";
+import { IS_DEMO } from "./lib/demo";
 
 const TABS = [
   ["overview", "Details"],
@@ -100,7 +101,7 @@ export function App() {
           </button>
           <div className="ai-status" title={health?.model}>
             <span className={`dot ${aiReady ? "on" : "off"}`} />
-            {health == null ? "Server offline" : aiReady ? "AI ready" : "AI key missing"}
+            {IS_DEMO ? "Demo mode" : health == null ? "Server offline" : aiReady ? "AI ready" : "AI key missing"}
           </div>
           {health && (
             <div className="ai-status">
@@ -112,6 +113,12 @@ export function App() {
       </aside>
 
       <main className="main">
+        {IS_DEMO && (
+          <div className="demo-banner">
+            <strong>Demo with example cases.</strong> Everything you change stays in this browser. AI, judgment search, downloads and printing need the
+            app running on your computer.
+          </div>
+        )}
         {route.page === "causelist" && <CauseList cases={cases} openCase={openCase} />}
         {route.page === "cases" && <Cases cases={cases} openCase={openCase} />}
         {route.page === "limitation" && <Limitation />}

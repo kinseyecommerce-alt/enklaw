@@ -27,7 +27,7 @@ function read(): ThemeId {
 }
 
 export function applyTheme(t: ThemeId = read()) {
-  document.documentElement.dataset.theme = resolve(t);
+  document.documentElement.dataset.enkTheme = resolve(t);
 }
 
 export function useTheme(): [ThemeId, (t: ThemeId) => void] {

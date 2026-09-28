@@ -1,6 +1,7 @@
 import { useSyncExternalStore } from "react";
 import type { Case } from "./types";
 import { uid } from "./id";
+import { IS_DEMO, demoCases } from "./demo";
 
 const KEY = "enklaw:india:v1";
 
@@ -15,7 +16,7 @@ function load(): State {
   } catch {
     // storage unavailable or corrupt; start empty
   }
-  return { cases: [] };
+  return { cases: IS_DEMO ? demoCases() : [] };
 }
 
 let state: State = load();
