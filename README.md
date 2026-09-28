@@ -17,9 +17,13 @@ A private, local-first app for people representing themselves in court. It helps
 | **Document drafting** | Answers, motions, declarations, oppositions, demand letters, discovery, proofs of service, notices of appeal, and more. Edit, then export to Word (`.doc`), Markdown, or print to PDF. |
 | **Document analyzer** | Upload a PDF or text file (complaint, motion, order, notice) to get a plain-English summary, the dates and deadlines it triggers, the key statements, and next steps. |
 | **Hearing prep** | An opening statement, key points tied to your exhibits, questions the judge is likely to ask, the other side's arguments, and a checklist of what to bring. |
+| **Court records** (CourtListener) | Find your case's official docket by case number or party names and link it. EnkLaw imports the judge, docket number, parties and attorneys, and filing date. It then lists docket entries with links to free PDFs, marks filings that are new since your last sync, and can add any entry to your timeline. You can also ask CourtListener to email you when new documents are filed. |
+| **Case law research** (CourtListener) | Search millions of real U.S. court opinions by court, date, relevance, or citation count, and save useful cases to a case's notes. |
+| **Citation checking** (CourtListener) | Check every case citation in a document against real opinions to catch fabricated or mistyped citations before you file. |
+| **AI + real case law** | With CourtListener turned on, the AI assistant and the drafting tool search real opinions and verify each citation before using it. |
 | **Notes & backup** | Per-case notes, plus JSON export and import of all your data. |
 
-Your data is stored only in your browser (`localStorage`). The only things that leave your machine are the requests you send to the Anthropic API when you use an AI feature.
+Your data is stored only in your browser (`localStorage`). Data leaves your machine only when you use an AI feature (sent to the Anthropic API) or a court-records feature (search terms and citations sent to CourtListener).
 
 ## Setup
 
@@ -32,6 +36,8 @@ npm run dev               # opens the web app on http://localhost:5173 (API on :
 ```
 
 Get an API key at <https://console.anthropic.com>. Everything except the AI features works without a key.
+
+For court records, create a free account at <https://www.courtlistener.com>, copy the API token from your profile, and set `COURTLISTENER_API_TOKEN` in `.env`. The token stays on the server; the browser only talks to EnkLaw's `/api/cl/*` proxy, which caches responses for 10 minutes to save your quota.
 
 To run a production build on a single port:
 
@@ -47,26 +53,30 @@ npm start                 # http://localhost:8787
 | `ANTHROPIC_API_KEY` | — | Needed for the AI features |
 | `ENKLAW_MODEL` | `claude-opus-5` | The Claude model to use |
 | `PORT` | `8787` | Port for the API server |
+| `COURTLISTENER_API_TOKEN` | — | Needed for court records, case law research, citation checking and docket alerts |
 
 AI requests use adaptive thinking and streaming. They also turn on Anthropic's server-side refusal fallback (`fallbacks: "default"`), so a request declined by a safety classifier is retried on a fallback model instead of failing.
 
 ## Development
 
 ```bash
-npm test          # deadline-calculation unit tests
+npm test          # deadline math and docket-linking unit tests
 npm run typecheck
 ```
 
 Project layout:
 
 ```
-server/        Express API that calls Claude (chat, draft, analyze, hearing-prep)
+server/        Express API: Claude (chat, draft, analyze, hearing-prep), CourtListener proxy and AI research tools
 src/lib/       data model, localStorage store, deadline math, .ics export, case-context builder
 src/views/     one file per screen
 src/components shared UI
 ```
 
 ## Limitations
+
+- **Court record coverage.** CourtListener has federal and state appellate opinions, plus federal (PACER) dockets and documents that have been added to the free RECAP archive. Most **state trial courts** (small claims, eviction, family, traffic) are not covered; for those, upload documents in "Analyze & Prep". Recent federal filings may be missing until someone pulls them from PACER.
+- **Rate limits.** Free CourtListener accounts are rate-limited. If you hit the limit, wait and try again.
 
 - The holiday calendar is U.S. **federal** only. State courts observe other holidays (for example, California's Cesar Chavez Day and Native American Day). Add those in the calculator's "extra court closure dates" field.
 - Only the file name of an evidence file is stored; keep the originals somewhere safe.

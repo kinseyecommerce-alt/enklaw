@@ -3,6 +3,8 @@ import { fileURLToPath } from "node:url";
 import express from "express";
 import Anthropic from "@anthropic-ai/sdk";
 import { SYSTEM_PROMPT, DRAFT_INSTRUCTIONS, ANALYZE_INSTRUCTIONS, HEARING_INSTRUCTIONS } from "./prompts.ts";
+import * as cl from "./courtlistener.ts";
+import { CASE_LAW_TOOLS, runCaseLawTool } from "./tools.ts";
 
 // Load .env if present (Node 22+ built-in).
 try {
@@ -23,35 +25,37 @@ const app = express();
 app.use(express.json({ limit: "20mb" }));
 
 app.get("/api/health", (_req, res) => {
-  res.json({ ok: true, aiConfigured, model: MODEL });
+  res.json({ ok: true, aiConfigured, model: MODEL, courtListener: cl.clConfigured() });
 });
 
 type ChatBody = {
   caseContext?: string;
   messages: Anthropic.Beta.BetaMessageParam[];
   webSearch?: boolean;
+  caseLaw?: boolean;
 };
 
 /**
  * Streams Claude's text output to the HTTP response as plain text.
- * Handles `pause_turn` (server-side web search hitting its iteration limit)
- * by continuing the turn, and surfaces refusals instead of returning silence.
+ * Runs the tool loop for the CourtListener tools, continues `pause_turn`
+ * (server-side web search hitting its iteration limit), and surfaces
+ * refusals instead of returning silence.
  */
 async function streamToResponse(
   res: express.Response,
-  opts: { system: string; messages: Anthropic.Beta.BetaMessageParam[]; webSearch?: boolean },
+  opts: { system: string; messages: Anthropic.Beta.BetaMessageParam[]; webSearch?: boolean; caseLaw?: boolean },
 ) {
   res.setHeader("Content-Type", "text/plain; charset=utf-8");
   res.setHeader("Cache-Control", "no-cache");
   res.setHeader("X-Accel-Buffering", "no");
 
   const messages = [...opts.messages];
-  const tools: Anthropic.Beta.BetaToolUnion[] = opts.webSearch
-    ? [{ type: "web_search_20260209", name: "web_search", max_uses: 5 }]
-    : [];
+  const tools: Anthropic.Beta.BetaToolUnion[] = [];
+  if (opts.caseLaw && cl.clConfigured()) tools.push(...CASE_LAW_TOOLS);
+  if (opts.webSearch) tools.push({ type: "web_search_20260209", name: "web_search", max_uses: 5 });
 
   try {
-    for (let turn = 0; turn < 4; turn++) {
+    for (let turn = 0; turn < 12; turn++) {
       const stream = client.beta.messages.stream({
         model: MODEL,
         max_tokens: 64000,
@@ -69,10 +73,18 @@ async function streamToResponse(
           res.write(event.delta.text);
         } else if (event.type === "content_block_start" && event.content_block.type === "server_tool_use") {
           res.write("\n\n_🔎 Searching the web…_\n\n");
+        } else if (event.type === "content_block_start" && event.content_block.type === "tool_use") {
+          res.write(`\n\n_⚖️ ${event.content_block.name === "verify_citations" ? "Verifying citations" : "Searching CourtListener"}…_\n\n`);
         }
       }
 
       const final = await stream.finalMessage();
+      if (final.stop_reason === "tool_use") {
+        const calls = final.content.filter((b): b is Anthropic.Beta.BetaToolUseBlock => b.type === "tool_use");
+        const results = await Promise.all(calls.map((call) => runCaseLawTool(call)));
+        messages.push({ role: "assistant", content: final.content }, { role: "user", content: results });
+        continue;
+      }
       if (final.stop_reason === "refusal") {
         res.write("\n\n[The assistant declined to answer this request. Try rephrasing it.]");
         break;
@@ -125,20 +137,26 @@ app.post("/api/chat", async (req, res) => {
     { role: "user", content: withCase(body.caseContext, firstText) },
     ...rest,
   ];
-  await streamToResponse(res, { system: SYSTEM_PROMPT, messages, webSearch: body.webSearch });
+  await streamToResponse(res, { system: SYSTEM_PROMPT, messages, webSearch: body.webSearch, caseLaw: body.caseLaw });
 });
 
 app.post("/api/draft", async (req, res) => {
   if (!requireAi(res)) return;
-  const { caseContext, docType, instructions } = req.body as {
+  const { caseContext, docType, instructions, caseLaw } = req.body as {
     caseContext?: string;
     docType: string;
     instructions?: string;
+    caseLaw?: boolean;
   };
-  const prompt = `${DRAFT_INSTRUCTIONS}\n\nDocument type: ${docType}\n\nWhat I need this document to do:\n${instructions || "(no extra instructions)"}`;
+  const research =
+    caseLaw && cl.clConfigured()
+      ? "\n\nUse the CourtListener tools to find real supporting authority before citing any case, and verify every case citation you include. Do not narrate the research; output only the document and checklist."
+      : "";
+  const prompt = `${DRAFT_INSTRUCTIONS}${research}\n\nDocument type: ${docType}\n\nWhat I need this document to do:\n${instructions || "(no extra instructions)"}`;
   await streamToResponse(res, {
     system: SYSTEM_PROMPT,
     messages: [{ role: "user", content: withCase(caseContext, prompt) }],
+    caseLaw,
   });
 });
 
@@ -176,6 +194,55 @@ app.post("/api/hearing-prep", async (req, res) => {
   });
 });
 
+// ---------- CourtListener proxy ----------
+
+function requireCl(res: express.Response): boolean {
+  if (cl.clConfigured()) return true;
+  res.status(503).json({ error: "CourtListener is not configured. Set COURTLISTENER_API_TOKEN in your .env file and restart the server." });
+  return false;
+}
+
+function clHandler(fn: (req: express.Request) => Promise<unknown>): express.RequestHandler {
+  return async (req, res) => {
+    if (!requireCl(res)) return;
+    try {
+      res.json((await fn(req)) ?? { ok: true });
+    } catch (e) {
+      const status = e instanceof cl.CourtListenerError ? e.status : 502;
+      res.status(status >= 400 && status < 600 ? status : 502).json({ error: e instanceof Error ? e.message : String(e) });
+    }
+  };
+}
+
+const qstr = (v: unknown) => (typeof v === "string" && v ? v : undefined);
+const searchParams = (req: express.Request): cl.SearchParams => ({
+  q: qstr(req.query.q) ?? "",
+  court: qstr(req.query.court),
+  filedAfter: qstr(req.query.filed_after),
+  filedBefore: qstr(req.query.filed_before),
+  cursor: qstr(req.query.cursor),
+  orderBy: qstr(req.query.order_by),
+});
+
+app.get("/api/cl/opinions", clHandler((req) => cl.searchOpinions(searchParams(req))));
+app.get("/api/cl/dockets", clHandler((req) => cl.searchDockets(searchParams(req))));
+app.get(
+  "/api/cl/dockets/:id",
+  clHandler((req) => cl.getDocket(Number(req.params.id))),
+);
+app.post(
+  "/api/cl/citations",
+  clHandler((req) => cl.checkCitations(String((req.body as { text?: string }).text ?? ""))),
+);
+app.post(
+  "/api/cl/alerts",
+  clHandler((req) => cl.createDocketAlert(Number((req.body as { docket?: number }).docket))),
+);
+app.delete(
+  "/api/cl/alerts/:id",
+  clHandler((req) => cl.deleteDocketAlert(Number(req.params.id))),
+);
+
 if (process.env.NODE_ENV === "production") {
   const dist = path.resolve(here, "../dist");
   app.use(express.static(dist));
@@ -183,5 +250,5 @@ if (process.env.NODE_ENV === "production") {
 }
 
 app.listen(PORT, () => {
-  console.log(`EnkLaw API listening on http://localhost:${PORT} (model: ${MODEL}, AI ${aiConfigured ? "enabled" : "NOT configured"})`);
+  console.log(`EnkLaw API listening on http://localhost:${PORT} (model: ${MODEL}, AI ${aiConfigured ? "enabled" : "NOT configured"}, CourtListener ${cl.clConfigured() ? "enabled" : "NOT configured"})`);
 });

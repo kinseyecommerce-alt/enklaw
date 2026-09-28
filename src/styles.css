@@ -203,3 +203,20 @@ form > * + * { margin-top: 12px; }
   .grid-2, .split, .split.wide-right { grid-template-columns: 1fr; }
   .paper { padding: 24px; }
 }
+
+.stack.tight { gap: 6px; }
+.list-item.top { align-items: flex-start; }
+.entry-no { font-weight: 700; font-variant-numeric: tabular-nums; min-width: 44px; color: var(--accent); }
+.kv { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 10px 16px; }
+.kv > div { display: flex; flex-direction: column; }
+.kv span { font-size: 0.75rem; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; }
+a.badge { text-decoration: none; }
+a.btn { text-decoration: none; }
+.case-link { font-weight: 700; color: var(--accent); text-decoration: none; }
+.case-link:hover { text-decoration: underline; }
+.snippet { border-left: 3px solid var(--border); padding-left: 10px; margin-top: 6px; color: var(--muted); }
+.notice a { color: var(--accent-2); }
+.list-item > .entry-no { flex: none; }
+.check { display: flex; gap: 8px; align-items: flex-start; font-size: 0.85rem; cursor: pointer; }
+.check input { margin-top: 3px; flex: none; }
+.row select { width: auto; }

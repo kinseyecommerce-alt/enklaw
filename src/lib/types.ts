@@ -59,6 +59,43 @@ export interface Note {
   updatedAt: string;
 }
 
+export interface DocketDocument {
+  description?: string;
+  documentNumber?: string;
+  pageCount?: number;
+  available: boolean;
+  url?: string;
+  pdfUrl?: string;
+}
+
+export interface DocketEntry {
+  entryNumber?: number;
+  dateFiled?: string;
+  description: string;
+  documents: DocketDocument[];
+}
+
+/** A CourtListener docket linked to a case. */
+export interface LinkedDocket {
+  docketId: number;
+  url: string;
+  caseName: string;
+  court: string;
+  courtId: string;
+  docketNumber?: string;
+  dateFiled?: string;
+  dateTerminated?: string;
+  judge?: string;
+  cause?: string;
+  natureOfSuit?: string;
+  entries: DocketEntry[];
+  entriesNote?: string;
+  lastSynced: string;
+  /** Entry keys seen at the previous sync, used to highlight new filings. */
+  newEntryKeys: string[];
+  alertId?: number;
+}
+
 export interface Case {
   id: string;
   title: string;
@@ -79,4 +116,5 @@ export interface Case {
   drafts: Draft[];
   notes: Note[];
   chat: ChatMessage[];
+  docket?: LinkedDocket;
 }

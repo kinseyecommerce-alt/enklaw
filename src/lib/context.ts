@@ -38,6 +38,15 @@ export function caseContext(c: Case): string {
       lines.push(`- ${t.date}: ${t.title}${t.description ? ` — ${t.description}` : ""}${refs.length ? ` (Exhibits ${refs.join(", ")})` : ""}`);
     }
   }
+  if (c.docket) {
+    const d = c.docket;
+    lines.push(`\nOfficial docket (from CourtListener, synced ${d.lastSynced.slice(0, 10)}): ${d.caseName}, ${d.court}${d.docketNumber ? `, No. ${d.docketNumber}` : ""}${d.judge ? `, Judge ${d.judge}` : ""}${d.dateFiled ? `, filed ${d.dateFiled}` : ""}${d.dateTerminated ? `, terminated ${d.dateTerminated}` : ""}. ${d.url}`);
+    if (d.entries.length) {
+      lines.push("Most recent docket entries:");
+      for (const e of d.entries.slice(0, 40))
+        lines.push(`- #${e.entryNumber ?? "?"} ${e.dateFiled ?? ""}: ${e.description.slice(0, 400)}`);
+    }
+  }
   if (c.notes.length) {
     lines.push("\nMy notes:");
     for (const n of c.notes) lines.push(`## ${n.title}\n${n.body}`);

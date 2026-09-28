@@ -8,6 +8,7 @@ import { downloadDoc, downloadFile, printMarkdown, slug } from "../lib/download"
 import { Markdown } from "../components/Markdown";
 import { AiGate } from "../components/AiGate";
 import { Empty, Field, Section } from "../components/ui";
+import { CitationChecker } from "../components/CitationChecker";
 
 const DOC_TYPES = [
   "Answer to complaint",
@@ -29,13 +30,14 @@ const DOC_TYPES = [
   "Other",
 ];
 
-export function Drafts({ c, aiReady }: { c: Case; aiReady: boolean }) {
+export function Drafts({ c, aiReady, clReady }: { c: Case; aiReady: boolean; clReady: boolean }) {
   const [activeId, setActiveId] = useState<string | null>(null);
   const [docType, setDocType] = useState(DOC_TYPES[0]);
   const [custom, setCustom] = useState("");
   const [instructions, setInstructions] = useState("");
   const [busy, setBusy] = useState(false);
   const [preview, setPreview] = useState(true);
+  const [caseLaw, setCaseLaw] = useState(true);
   const abort = useRef<AbortController | null>(null);
 
   const active = c.drafts.find((d) => d.id === activeId);
@@ -51,7 +53,7 @@ export function Drafts({ c, aiReady }: { c: Case; aiReady: boolean }) {
     setBusy(true);
     abort.current = new AbortController();
     try {
-      await streamPost("/api/draft", { caseContext: caseContext(c), docType: type, instructions }, (body) => saveDraft(d.id, { body }), abort.current.signal);
+      await streamPost("/api/draft", { caseContext: caseContext(c), docType: type, instructions, caseLaw: caseLaw && clReady }, (body) => saveDraft(d.id, { body }), abort.current.signal);
     } catch (e) {
       if (!(e instanceof DOMException && e.name === "AbortError")) alert(e instanceof Error ? e.message : String(e));
     }
@@ -78,6 +80,10 @@ export function Drafts({ c, aiReady }: { c: Case; aiReady: boolean }) {
           <Field label="What should it say or accomplish?" hint="Key facts, what you're asking the court for, tone, anything to include.">
             <textarea rows={5} value={instructions} onChange={(e) => setInstructions(e.target.value)} />
           </Field>
+          <label className="check" title={clReady ? "" : "Add COURTLISTENER_API_TOKEN to .env to enable"}>
+            <input type="checkbox" disabled={!clReady} checked={caseLaw && clReady} onChange={(e) => setCaseLaw(e.target.checked)} /> Find & verify real case
+            law on CourtListener (slower)
+          </label>
           <div className="row">
             <button className="btn primary" disabled={!aiReady || busy} onClick={generate}>
               {busy ? "Drafting…" : "Generate draft"}
@@ -156,6 +162,7 @@ export function Drafts({ c, aiReady }: { c: Case; aiReady: boolean }) {
         ) : (
           <div className="stack">
             <input value={active.title} onChange={(e) => saveDraft(active.id, { title: e.target.value })} />
+            {clReady && <CitationChecker key={active.id} text={active.body} disabled={busy} />}
             {preview ? (
               <div className="paper">
                 <Markdown text={active.body || "_Drafting…_"} />

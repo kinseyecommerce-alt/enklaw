@@ -12,10 +12,13 @@ import { Tools } from "./views/Tools";
 import { Notes } from "./views/Notes";
 import { Settings } from "./views/Settings";
 import { Calculator } from "./views/Calculator";
+import { CourtRecords } from "./views/CourtRecords";
+import { Research } from "./views/Research";
 
 const TABS = [
   ["overview", "Overview"],
   ["deadlines", "Deadlines & Hearings"],
+  ["court", "Court Records"],
   ["evidence", "Evidence"],
   ["timeline", "Timeline"],
   ["assistant", "AI Assistant"],
@@ -25,7 +28,7 @@ const TABS = [
 ] as const;
 type Tab = (typeof TABS)[number][0];
 
-type Route = { page: "home" } | { page: "calculator" } | { page: "settings" } | { page: "case"; id: string; tab: Tab };
+type Route = { page: "home" } | { page: "calculator" } | { page: "research" } | { page: "settings" } | { page: "case"; id: string; tab: Tab };
 
 export function App() {
   const cases = useCases();
@@ -55,6 +58,9 @@ export function App() {
           </button>
           <button className={route.page === "calculator" ? "nav active" : "nav"} onClick={() => setRoute({ page: "calculator" })}>
             Deadline calculator
+          </button>
+          <button className={route.page === "research" ? "nav active" : "nav"} onClick={() => setRoute({ page: "research" })}>
+            Case law research
           </button>
           <div className="nav-heading">
             Cases
@@ -88,12 +94,19 @@ export function App() {
             <span className={`dot ${health?.aiConfigured ? "on" : "off"}`} />
             {health == null ? "Server offline" : health.aiConfigured ? "AI ready" : "AI key missing"}
           </div>
+          {health && (
+            <div className="ai-status">
+              <span className={`dot ${health.courtListener ? "on" : "off"}`} />
+              {health.courtListener ? "Court records ready" : "CourtListener token missing"}
+            </div>
+          )}
         </div>
       </aside>
 
       <main className="main">
         {route.page === "home" && <Dashboard cases={cases} openCase={openCase} />}
         {route.page === "calculator" && <Calculator />}
+        {route.page === "research" && <Research cases={cases} clReady={!!health?.courtListener} />}
         {route.page === "settings" && <Settings health={health} />}
         {route.page === "case" && current && (
           <>
@@ -115,10 +128,11 @@ export function App() {
             <div className="tab-body">
               {route.tab === "overview" && <Overview c={current} />}
               {route.tab === "deadlines" && <Deadlines c={current} />}
+              {route.tab === "court" && <CourtRecords c={current} clReady={!!health?.courtListener} />}
               {route.tab === "evidence" && <EvidenceView c={current} />}
               {route.tab === "timeline" && <Timeline c={current} />}
-              {route.tab === "assistant" && <Assistant c={current} aiReady={!!health?.aiConfigured} />}
-              {route.tab === "drafts" && <Drafts c={current} aiReady={!!health?.aiConfigured} />}
+              {route.tab === "assistant" && <Assistant c={current} aiReady={!!health?.aiConfigured} clReady={!!health?.courtListener} />}
+              {route.tab === "drafts" && <Drafts c={current} aiReady={!!health?.aiConfigured} clReady={!!health?.courtListener} />}
               {route.tab === "tools" && <Tools c={current} aiReady={!!health?.aiConfigured} />}
               {route.tab === "notes" && <Notes c={current} />}
             </div>

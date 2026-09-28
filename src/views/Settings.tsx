@@ -24,6 +24,23 @@ export function Settings({ health }: { health: Health | null }) {
           </p>
         )}
       </Section>
+      <Section title="Court records (CourtListener)">
+        {health?.courtListener ? (
+          <p>Connected. Court records, case law research, citation checks and docket alerts are enabled.</p>
+        ) : (
+          <p>
+            Not configured. Create a free account at{" "}
+            <a href="https://www.courtlistener.com/" target="_blank" rel="noreferrer">
+              courtlistener.com
+            </a>
+            , copy your API token from your profile, set <code>COURTLISTENER_API_TOKEN</code> in <code>.env</code>, and restart the server.
+          </p>
+        )}
+        <p className="muted small">
+          Coverage: millions of federal and state appellate opinions, and federal (PACER) dockets that have been added to the free RECAP archive. Most
+          state trial court dockets are not included. Free accounts are rate-limited.
+        </p>
+      </Section>
       <Section title="Backup your data">
         <p className="muted">
           Your cases are stored only in this browser. Export a backup regularly — clearing browser data will erase them.

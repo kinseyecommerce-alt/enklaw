@@ -14,10 +14,12 @@ const STARTERS = [
   "How do I properly serve documents on the other party?",
 ];
 
-export function Assistant({ c, aiReady }: { c: Case; aiReady: boolean }) {
+export function Assistant({ c, aiReady, clReady }: { c: Case; aiReady: boolean; clReady: boolean }) {
   const [input, setInput] = useState("");
   const [streaming, setStreaming] = useState<string | null>(null);
   const [webSearch, setWebSearch] = useState(false);
+  const [caseLaw, setCaseLaw] = useState(clReady);
+  useEffect(() => setCaseLaw(clReady), [clReady]);
   const abort = useRef<AbortController | null>(null);
   const bottom = useRef<HTMLDivElement>(null);
 
@@ -37,7 +39,7 @@ export function Assistant({ c, aiReady }: { c: Case; aiReady: boolean }) {
       setStreaming(t);
     };
     try {
-      await chat(caseContext(c), history, webSearch, onText, abort.current.signal);
+      await chat(caseContext(c), history, { webSearch, caseLaw: caseLaw && clReady }, onText, abort.current.signal);
     } catch (e) {
       const aborted = e instanceof DOMException && e.name === "AbortError";
       reply += aborted ? "\n\n_[stopped]_" : `\n\n[Error: ${e instanceof Error ? e.message : String(e)}]`;
@@ -92,9 +94,15 @@ export function Assistant({ c, aiReady }: { c: Case; aiReady: boolean }) {
           }}
         />
         <div className="row between">
-          <label className="row small">
-            <input type="checkbox" checked={webSearch} onChange={(e) => setWebSearch(e.target.checked)} /> Search the web for current rules & law
-          </label>
+          <div className="row" style={{ gap: 16 }}>
+            <label className="check" title={clReady ? "" : "Add COURTLISTENER_API_TOKEN to .env to enable"}>
+              <input type="checkbox" disabled={!clReady} checked={caseLaw && clReady} onChange={(e) => setCaseLaw(e.target.checked)} /> Research & verify case law
+              (CourtListener)
+            </label>
+            <label className="check">
+              <input type="checkbox" checked={webSearch} onChange={(e) => setWebSearch(e.target.checked)} /> Search the web
+            </label>
+          </div>
           <div className="row">
             {c.chat.length > 0 && streaming === null && (
               <button type="button" className="btn" onClick={() => confirm("Clear this conversation?") && updateCase(c.id, (x) => ({ ...x, chat: [] }))}>
